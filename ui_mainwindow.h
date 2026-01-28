@@ -1,0 +1,670 @@
+/********************************************************************************
+** Form generated from reading UI file 'mainwindow.ui'
+**
+** Created by: Qt User Interface Compiler version 5.12.4
+**
+** WARNING! All changes made in this file will be lost when recompiling UI file!
+********************************************************************************/
+
+#ifndef UI_MAINWINDOW_H
+#define UI_MAINWINDOW_H
+
+#include <QtCore/QVariant>
+#include <QtWidgets/QApplication>
+#include <QtWidgets/QComboBox>
+#include <QtWidgets/QGridLayout>
+#include <QtWidgets/QGroupBox>
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QLineEdit>
+#include <QtWidgets/QMainWindow>
+#include <QtWidgets/QMenuBar>
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QStatusBar>
+#include <QtWidgets/QToolBar>
+#include <QtWidgets/QWidget>
+
+QT_BEGIN_NAMESPACE
+
+class Ui_MainWindow
+{
+public:
+    QWidget *centralWidget;
+    QLabel *label_31;
+    QLineEdit *backOrigin_velocity;
+    QLabel *label_20;
+    QPushButton *rSubBtn;
+    QLabel *label_37;
+    QLabel *label_32;
+    QLabel *label_36;
+    QGroupBox *groupBox;
+    QGridLayout *gridLayout_7;
+    QPushButton *connectBtn;
+    QLabel *label_28;
+    QLineEdit *port_Edit2;
+    QLineEdit *IP_Edit;
+    QLabel *label_27;
+    QLineEdit *IP_Edit2;
+    QLabel *label_2;
+    QLabel *label;
+    QLineEdit *port_Edit;
+    QPushButton *zAddBtn;
+    QPushButton *zSubBtn;
+    QLabel *label_29;
+    QPushButton *xSubBtn;
+    QLineEdit *jog_velocity;
+    QPushButton *backZeroScanBtn;
+    QPushButton *yAddBtn;
+    QPushButton *ySubBtn;
+    QPushButton *xAddBtn;
+    QPushButton *rAddBtn;
+    QPushButton *resetScanBtn;
+    QLabel *label_13;
+    QPushButton *setMOrigin;
+    QLabel *label_33;
+    QLabel *label_38;
+    QLabel *label_39;
+    QLabel *label_34;
+    QLabel *label_35;
+    QLineEdit *originSpeed;
+    QLabel *label_14;
+    QLabel *label_40;
+    QLineEdit *startSpeed;
+    QLabel *label_41;
+    QLabel *label_15;
+    QLabel *label_42;
+    QLabel *label_16;
+    QLineEdit *endSpeed;
+    QLineEdit *inputx;
+    QLineEdit *inputy;
+    QLineEdit *inputz;
+    QLineEdit *inputr;
+    QLabel *label_43;
+    QLabel *label_44;
+    QLabel *label_45;
+    QLabel *label_46;
+    QComboBox *comboBox;
+    QLabel *label_3;
+    QLineEdit *inputx_2;
+    QLineEdit *inputy_2;
+    QLineEdit *inputr_2;
+    QLineEdit *inputz_2;
+    QLineEdit *inputx_3;
+    QLineEdit *inputy_3;
+    QLineEdit *inputr_3;
+    QLineEdit *inputz_3;
+    QLineEdit *inputx_4;
+    QLineEdit *inputy_4;
+    QLineEdit *inputr_4;
+    QLineEdit *inputz_4;
+    QLabel *label_47;
+    QLabel *label_48;
+    QLabel *label_49;
+    QPushButton *setOrigin;
+    QPushButton *setStart;
+    QPushButton *setEnd;
+    QComboBox *regin;
+    QLabel *label_50;
+    QLineEdit *sweepSpeed;
+    QLabel *label_21;
+    QPushButton *startScanBtn;
+    QPushButton *stopScanBtn;
+    QPushButton *endScanBtn;
+    QLabel *xCurPos;
+    QLabel *yCurPos;
+    QLabel *zCurPos;
+    QLabel *rCurPos;
+    QLineEdit *y_step;
+    QLabel *label_18;
+    QLineEdit *x_lenght;
+    QLabel *label_17;
+    QLabel *label_19;
+    QLineEdit *y_lenght;
+    QLabel *label_22;
+    QLabel *label_23;
+    QLabel *label_24;
+    QMenuBar *menuBar;
+    QToolBar *mainToolBar;
+    QStatusBar *statusBar;
+
+    void setupUi(QMainWindow *MainWindow)
+    {
+        if (MainWindow->objectName().isEmpty())
+            MainWindow->setObjectName(QString::fromUtf8("MainWindow"));
+        MainWindow->resize(1135, 774);
+        centralWidget = new QWidget(MainWindow);
+        centralWidget->setObjectName(QString::fromUtf8("centralWidget"));
+        label_31 = new QLabel(centralWidget);
+        label_31->setObjectName(QString::fromUtf8("label_31"));
+        label_31->setGeometry(QRect(500, 188, 61, 41));
+        backOrigin_velocity = new QLineEdit(centralWidget);
+        backOrigin_velocity->setObjectName(QString::fromUtf8("backOrigin_velocity"));
+        backOrigin_velocity->setGeometry(QRect(120, 290, 161, 31));
+        QSizePolicy sizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+        sizePolicy.setHorizontalStretch(0);
+        sizePolicy.setVerticalStretch(0);
+        sizePolicy.setHeightForWidth(backOrigin_velocity->sizePolicy().hasHeightForWidth());
+        backOrigin_velocity->setSizePolicy(sizePolicy);
+        QFont font;
+        font.setPointSize(15);
+        backOrigin_velocity->setFont(font);
+        label_20 = new QLabel(centralWidget);
+        label_20->setObjectName(QString::fromUtf8("label_20"));
+        label_20->setGeometry(QRect(10, 290, 101, 31));
+        rSubBtn = new QPushButton(centralWidget);
+        rSubBtn->setObjectName(QString::fromUtf8("rSubBtn"));
+        rSubBtn->setGeometry(QRect(790, 240, 61, 27));
+        label_37 = new QLabel(centralWidget);
+        label_37->setObjectName(QString::fromUtf8("label_37"));
+        label_37->setGeometry(QRect(690, 229, 31, 41));
+        label_32 = new QLabel(centralWidget);
+        label_32->setObjectName(QString::fromUtf8("label_32"));
+        label_32->setGeometry(QRect(290, 330, 38, 31));
+        label_36 = new QLabel(centralWidget);
+        label_36->setObjectName(QString::fromUtf8("label_36"));
+        label_36->setGeometry(QRect(690, 188, 31, 41));
+        groupBox = new QGroupBox(centralWidget);
+        groupBox->setObjectName(QString::fromUtf8("groupBox"));
+        groupBox->setGeometry(QRect(-20, 0, 911, 111));
+        groupBox->setFont(font);
+        gridLayout_7 = new QGridLayout(groupBox);
+        gridLayout_7->setSpacing(6);
+        gridLayout_7->setContentsMargins(11, 11, 11, 11);
+        gridLayout_7->setObjectName(QString::fromUtf8("gridLayout_7"));
+        connectBtn = new QPushButton(groupBox);
+        connectBtn->setObjectName(QString::fromUtf8("connectBtn"));
+        QSizePolicy sizePolicy1(QSizePolicy::Minimum, QSizePolicy::Preferred);
+        sizePolicy1.setHorizontalStretch(0);
+        sizePolicy1.setVerticalStretch(0);
+        sizePolicy1.setHeightForWidth(connectBtn->sizePolicy().hasHeightForWidth());
+        connectBtn->setSizePolicy(sizePolicy1);
+        connectBtn->setMinimumSize(QSize(130, 0));
+        connectBtn->setFont(font);
+
+        gridLayout_7->addWidget(connectBtn, 0, 5, 1, 1);
+
+        label_28 = new QLabel(groupBox);
+        label_28->setObjectName(QString::fromUtf8("label_28"));
+
+        gridLayout_7->addWidget(label_28, 1, 3, 1, 1);
+
+        port_Edit2 = new QLineEdit(groupBox);
+        port_Edit2->setObjectName(QString::fromUtf8("port_Edit2"));
+
+        gridLayout_7->addWidget(port_Edit2, 1, 4, 1, 1);
+
+        IP_Edit = new QLineEdit(groupBox);
+        IP_Edit->setObjectName(QString::fromUtf8("IP_Edit"));
+        sizePolicy.setHeightForWidth(IP_Edit->sizePolicy().hasHeightForWidth());
+        IP_Edit->setSizePolicy(sizePolicy);
+        IP_Edit->setFont(font);
+
+        gridLayout_7->addWidget(IP_Edit, 0, 2, 1, 1);
+
+        label_27 = new QLabel(groupBox);
+        label_27->setObjectName(QString::fromUtf8("label_27"));
+
+        gridLayout_7->addWidget(label_27, 1, 1, 1, 1);
+
+        IP_Edit2 = new QLineEdit(groupBox);
+        IP_Edit2->setObjectName(QString::fromUtf8("IP_Edit2"));
+
+        gridLayout_7->addWidget(IP_Edit2, 1, 2, 1, 1);
+
+        label_2 = new QLabel(groupBox);
+        label_2->setObjectName(QString::fromUtf8("label_2"));
+        label_2->setFont(font);
+        label_2->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
+
+        gridLayout_7->addWidget(label_2, 0, 3, 1, 1);
+
+        label = new QLabel(groupBox);
+        label->setObjectName(QString::fromUtf8("label"));
+        label->setFont(font);
+        label->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
+
+        gridLayout_7->addWidget(label, 0, 1, 1, 1);
+
+        port_Edit = new QLineEdit(groupBox);
+        port_Edit->setObjectName(QString::fromUtf8("port_Edit"));
+        sizePolicy.setHeightForWidth(port_Edit->sizePolicy().hasHeightForWidth());
+        port_Edit->setSizePolicy(sizePolicy);
+        port_Edit->setFont(font);
+
+        gridLayout_7->addWidget(port_Edit, 0, 4, 1, 1);
+
+        zAddBtn = new QPushButton(centralWidget);
+        zAddBtn->setObjectName(QString::fromUtf8("zAddBtn"));
+        zAddBtn->setGeometry(QRect(720, 200, 61, 27));
+        zSubBtn = new QPushButton(centralWidget);
+        zSubBtn->setObjectName(QString::fromUtf8("zSubBtn"));
+        zSubBtn->setGeometry(QRect(790, 200, 61, 27));
+        label_29 = new QLabel(centralWidget);
+        label_29->setObjectName(QString::fromUtf8("label_29"));
+        label_29->setGeometry(QRect(500, 229, 61, 41));
+        xSubBtn = new QPushButton(centralWidget);
+        xSubBtn->setObjectName(QString::fromUtf8("xSubBtn"));
+        xSubBtn->setGeometry(QRect(793, 120, 61, 27));
+        sizePolicy1.setHeightForWidth(xSubBtn->sizePolicy().hasHeightForWidth());
+        xSubBtn->setSizePolicy(sizePolicy1);
+        xSubBtn->setAutoRepeat(false);
+        xSubBtn->setAutoExclusive(false);
+        jog_velocity = new QLineEdit(centralWidget);
+        jog_velocity->setObjectName(QString::fromUtf8("jog_velocity"));
+        jog_velocity->setGeometry(QRect(120, 330, 161, 32));
+        sizePolicy.setHeightForWidth(jog_velocity->sizePolicy().hasHeightForWidth());
+        jog_velocity->setSizePolicy(sizePolicy);
+        jog_velocity->setFont(font);
+        backZeroScanBtn = new QPushButton(centralWidget);
+        backZeroScanBtn->setObjectName(QString::fromUtf8("backZeroScanBtn"));
+        backZeroScanBtn->setGeometry(QRect(20, 580, 121, 28));
+        yAddBtn = new QPushButton(centralWidget);
+        yAddBtn->setObjectName(QString::fromUtf8("yAddBtn"));
+        yAddBtn->setGeometry(QRect(720, 160, 61, 27));
+        sizePolicy1.setHeightForWidth(yAddBtn->sizePolicy().hasHeightForWidth());
+        yAddBtn->setSizePolicy(sizePolicy1);
+        yAddBtn->setAutoRepeat(false);
+        yAddBtn->setAutoExclusive(false);
+        ySubBtn = new QPushButton(centralWidget);
+        ySubBtn->setObjectName(QString::fromUtf8("ySubBtn"));
+        ySubBtn->setGeometry(QRect(790, 160, 61, 27));
+        sizePolicy1.setHeightForWidth(ySubBtn->sizePolicy().hasHeightForWidth());
+        ySubBtn->setSizePolicy(sizePolicy1);
+        ySubBtn->setAutoRepeat(false);
+        ySubBtn->setAutoExclusive(false);
+        xAddBtn = new QPushButton(centralWidget);
+        xAddBtn->setObjectName(QString::fromUtf8("xAddBtn"));
+        xAddBtn->setGeometry(QRect(720, 120, 61, 27));
+        sizePolicy1.setHeightForWidth(xAddBtn->sizePolicy().hasHeightForWidth());
+        xAddBtn->setSizePolicy(sizePolicy1);
+        xAddBtn->setAutoRepeat(false);
+        xAddBtn->setAutoExclusive(false);
+        rAddBtn = new QPushButton(centralWidget);
+        rAddBtn->setObjectName(QString::fromUtf8("rAddBtn"));
+        rAddBtn->setGeometry(QRect(720, 240, 61, 27));
+        resetScanBtn = new QPushButton(centralWidget);
+        resetScanBtn->setObjectName(QString::fromUtf8("resetScanBtn"));
+        resetScanBtn->setGeometry(QRect(150, 580, 121, 28));
+        label_13 = new QLabel(centralWidget);
+        label_13->setObjectName(QString::fromUtf8("label_13"));
+        label_13->setGeometry(QRect(10, 330, 101, 32));
+        setMOrigin = new QPushButton(centralWidget);
+        setMOrigin->setObjectName(QString::fromUtf8("setMOrigin"));
+        setMOrigin->setGeometry(QRect(30, 190, 101, 30));
+        sizePolicy1.setHeightForWidth(setMOrigin->sizePolicy().hasHeightForWidth());
+        setMOrigin->setSizePolicy(sizePolicy1);
+        label_33 = new QLabel(centralWidget);
+        label_33->setObjectName(QString::fromUtf8("label_33"));
+        label_33->setGeometry(QRect(500, 148, 61, 41));
+        label_38 = new QLabel(centralWidget);
+        label_38->setObjectName(QString::fromUtf8("label_38"));
+        label_38->setGeometry(QRect(690, 148, 31, 41));
+        label_39 = new QLabel(centralWidget);
+        label_39->setObjectName(QString::fromUtf8("label_39"));
+        label_39->setGeometry(QRect(690, 120, 31, 29));
+        label_34 = new QLabel(centralWidget);
+        label_34->setObjectName(QString::fromUtf8("label_34"));
+        label_34->setGeometry(QRect(500, 120, 61, 29));
+        label_35 = new QLabel(centralWidget);
+        label_35->setObjectName(QString::fromUtf8("label_35"));
+        label_35->setGeometry(QRect(640, 270, 38, 31));
+        originSpeed = new QLineEdit(centralWidget);
+        originSpeed->setObjectName(QString::fromUtf8("originSpeed"));
+        originSpeed->setGeometry(QRect(120, 370, 161, 32));
+        sizePolicy.setHeightForWidth(originSpeed->sizePolicy().hasHeightForWidth());
+        originSpeed->setSizePolicy(sizePolicy);
+        originSpeed->setFont(font);
+        label_14 = new QLabel(centralWidget);
+        label_14->setObjectName(QString::fromUtf8("label_14"));
+        label_14->setGeometry(QRect(10, 370, 101, 32));
+        label_40 = new QLabel(centralWidget);
+        label_40->setObjectName(QString::fromUtf8("label_40"));
+        label_40->setGeometry(QRect(290, 370, 38, 31));
+        startSpeed = new QLineEdit(centralWidget);
+        startSpeed->setObjectName(QString::fromUtf8("startSpeed"));
+        startSpeed->setGeometry(QRect(120, 410, 161, 32));
+        sizePolicy.setHeightForWidth(startSpeed->sizePolicy().hasHeightForWidth());
+        startSpeed->setSizePolicy(sizePolicy);
+        startSpeed->setFont(font);
+        label_41 = new QLabel(centralWidget);
+        label_41->setObjectName(QString::fromUtf8("label_41"));
+        label_41->setGeometry(QRect(290, 410, 38, 31));
+        label_15 = new QLabel(centralWidget);
+        label_15->setObjectName(QString::fromUtf8("label_15"));
+        label_15->setGeometry(QRect(10, 410, 101, 32));
+        label_42 = new QLabel(centralWidget);
+        label_42->setObjectName(QString::fromUtf8("label_42"));
+        label_42->setGeometry(QRect(290, 450, 38, 31));
+        label_16 = new QLabel(centralWidget);
+        label_16->setObjectName(QString::fromUtf8("label_16"));
+        label_16->setGeometry(QRect(10, 450, 101, 32));
+        endSpeed = new QLineEdit(centralWidget);
+        endSpeed->setObjectName(QString::fromUtf8("endSpeed"));
+        endSpeed->setGeometry(QRect(120, 450, 161, 32));
+        sizePolicy.setHeightForWidth(endSpeed->sizePolicy().hasHeightForWidth());
+        endSpeed->setSizePolicy(sizePolicy);
+        endSpeed->setFont(font);
+        inputx = new QLineEdit(centralWidget);
+        inputx->setObjectName(QString::fromUtf8("inputx"));
+        inputx->setGeometry(QRect(30, 140, 71, 31));
+        sizePolicy.setHeightForWidth(inputx->sizePolicy().hasHeightForWidth());
+        inputx->setSizePolicy(sizePolicy);
+        inputx->setFont(font);
+        inputy = new QLineEdit(centralWidget);
+        inputy->setObjectName(QString::fromUtf8("inputy"));
+        inputy->setGeometry(QRect(150, 140, 71, 31));
+        sizePolicy.setHeightForWidth(inputy->sizePolicy().hasHeightForWidth());
+        inputy->setSizePolicy(sizePolicy);
+        inputy->setFont(font);
+        inputz = new QLineEdit(centralWidget);
+        inputz->setObjectName(QString::fromUtf8("inputz"));
+        inputz->setGeometry(QRect(260, 140, 71, 31));
+        sizePolicy.setHeightForWidth(inputz->sizePolicy().hasHeightForWidth());
+        inputz->setSizePolicy(sizePolicy);
+        inputz->setFont(font);
+        inputr = new QLineEdit(centralWidget);
+        inputr->setObjectName(QString::fromUtf8("inputr"));
+        inputr->setGeometry(QRect(380, 140, 71, 31));
+        sizePolicy.setHeightForWidth(inputr->sizePolicy().hasHeightForWidth());
+        inputr->setSizePolicy(sizePolicy);
+        inputr->setFont(font);
+        label_43 = new QLabel(centralWidget);
+        label_43->setObjectName(QString::fromUtf8("label_43"));
+        label_43->setGeometry(QRect(0, 110, 101, 29));
+        label_44 = new QLabel(centralWidget);
+        label_44->setObjectName(QString::fromUtf8("label_44"));
+        label_44->setGeometry(QRect(130, 110, 91, 29));
+        label_45 = new QLabel(centralWidget);
+        label_45->setObjectName(QString::fromUtf8("label_45"));
+        label_45->setGeometry(QRect(240, 110, 91, 29));
+        label_46 = new QLabel(centralWidget);
+        label_46->setObjectName(QString::fromUtf8("label_46"));
+        label_46->setGeometry(QRect(350, 110, 101, 29));
+        comboBox = new QComboBox(centralWidget);
+        comboBox->addItem(QString());
+        comboBox->addItem(QString());
+        comboBox->addItem(QString());
+        comboBox->addItem(QString());
+        comboBox->setObjectName(QString::fromUtf8("comboBox"));
+        comboBox->setGeometry(QRect(150, 510, 72, 31));
+        label_3 = new QLabel(centralWidget);
+        label_3->setObjectName(QString::fromUtf8("label_3"));
+        label_3->setGeometry(QRect(30, 510, 111, 31));
+        inputx_2 = new QLineEdit(centralWidget);
+        inputx_2->setObjectName(QString::fromUtf8("inputx_2"));
+        inputx_2->setGeometry(QRect(620, 310, 71, 31));
+        sizePolicy.setHeightForWidth(inputx_2->sizePolicy().hasHeightForWidth());
+        inputx_2->setSizePolicy(sizePolicy);
+        inputx_2->setFont(font);
+        inputy_2 = new QLineEdit(centralWidget);
+        inputy_2->setObjectName(QString::fromUtf8("inputy_2"));
+        inputy_2->setGeometry(QRect(720, 310, 71, 31));
+        sizePolicy.setHeightForWidth(inputy_2->sizePolicy().hasHeightForWidth());
+        inputy_2->setSizePolicy(sizePolicy);
+        inputy_2->setFont(font);
+        inputr_2 = new QLineEdit(centralWidget);
+        inputr_2->setObjectName(QString::fromUtf8("inputr_2"));
+        inputr_2->setGeometry(QRect(920, 310, 71, 31));
+        sizePolicy.setHeightForWidth(inputr_2->sizePolicy().hasHeightForWidth());
+        inputr_2->setSizePolicy(sizePolicy);
+        inputr_2->setFont(font);
+        inputz_2 = new QLineEdit(centralWidget);
+        inputz_2->setObjectName(QString::fromUtf8("inputz_2"));
+        inputz_2->setGeometry(QRect(820, 310, 71, 31));
+        sizePolicy.setHeightForWidth(inputz_2->sizePolicy().hasHeightForWidth());
+        inputz_2->setSizePolicy(sizePolicy);
+        inputz_2->setFont(font);
+        inputx_3 = new QLineEdit(centralWidget);
+        inputx_3->setObjectName(QString::fromUtf8("inputx_3"));
+        inputx_3->setGeometry(QRect(620, 360, 71, 31));
+        sizePolicy.setHeightForWidth(inputx_3->sizePolicy().hasHeightForWidth());
+        inputx_3->setSizePolicy(sizePolicy);
+        inputx_3->setFont(font);
+        inputy_3 = new QLineEdit(centralWidget);
+        inputy_3->setObjectName(QString::fromUtf8("inputy_3"));
+        inputy_3->setGeometry(QRect(720, 360, 71, 31));
+        sizePolicy.setHeightForWidth(inputy_3->sizePolicy().hasHeightForWidth());
+        inputy_3->setSizePolicy(sizePolicy);
+        inputy_3->setFont(font);
+        inputr_3 = new QLineEdit(centralWidget);
+        inputr_3->setObjectName(QString::fromUtf8("inputr_3"));
+        inputr_3->setGeometry(QRect(920, 360, 71, 31));
+        sizePolicy.setHeightForWidth(inputr_3->sizePolicy().hasHeightForWidth());
+        inputr_3->setSizePolicy(sizePolicy);
+        inputr_3->setFont(font);
+        inputz_3 = new QLineEdit(centralWidget);
+        inputz_3->setObjectName(QString::fromUtf8("inputz_3"));
+        inputz_3->setGeometry(QRect(820, 360, 71, 31));
+        sizePolicy.setHeightForWidth(inputz_3->sizePolicy().hasHeightForWidth());
+        inputz_3->setSizePolicy(sizePolicy);
+        inputz_3->setFont(font);
+        inputx_4 = new QLineEdit(centralWidget);
+        inputx_4->setObjectName(QString::fromUtf8("inputx_4"));
+        inputx_4->setGeometry(QRect(620, 410, 71, 31));
+        sizePolicy.setHeightForWidth(inputx_4->sizePolicy().hasHeightForWidth());
+        inputx_4->setSizePolicy(sizePolicy);
+        inputx_4->setFont(font);
+        inputy_4 = new QLineEdit(centralWidget);
+        inputy_4->setObjectName(QString::fromUtf8("inputy_4"));
+        inputy_4->setGeometry(QRect(720, 410, 71, 31));
+        sizePolicy.setHeightForWidth(inputy_4->sizePolicy().hasHeightForWidth());
+        inputy_4->setSizePolicy(sizePolicy);
+        inputy_4->setFont(font);
+        inputr_4 = new QLineEdit(centralWidget);
+        inputr_4->setObjectName(QString::fromUtf8("inputr_4"));
+        inputr_4->setGeometry(QRect(920, 410, 71, 31));
+        sizePolicy.setHeightForWidth(inputr_4->sizePolicy().hasHeightForWidth());
+        inputr_4->setSizePolicy(sizePolicy);
+        inputr_4->setFont(font);
+        inputz_4 = new QLineEdit(centralWidget);
+        inputz_4->setObjectName(QString::fromUtf8("inputz_4"));
+        inputz_4->setGeometry(QRect(820, 410, 71, 31));
+        sizePolicy.setHeightForWidth(inputz_4->sizePolicy().hasHeightForWidth());
+        inputz_4->setSizePolicy(sizePolicy);
+        inputz_4->setFont(font);
+        label_47 = new QLabel(centralWidget);
+        label_47->setObjectName(QString::fromUtf8("label_47"));
+        label_47->setGeometry(QRect(740, 270, 38, 31));
+        label_48 = new QLabel(centralWidget);
+        label_48->setObjectName(QString::fromUtf8("label_48"));
+        label_48->setGeometry(QRect(840, 270, 38, 31));
+        label_49 = new QLabel(centralWidget);
+        label_49->setObjectName(QString::fromUtf8("label_49"));
+        label_49->setGeometry(QRect(940, 270, 38, 31));
+        setOrigin = new QPushButton(centralWidget);
+        setOrigin->setObjectName(QString::fromUtf8("setOrigin"));
+        setOrigin->setGeometry(QRect(1020, 310, 111, 30));
+        sizePolicy1.setHeightForWidth(setOrigin->sizePolicy().hasHeightForWidth());
+        setOrigin->setSizePolicy(sizePolicy1);
+        setStart = new QPushButton(centralWidget);
+        setStart->setObjectName(QString::fromUtf8("setStart"));
+        setStart->setGeometry(QRect(1020, 360, 111, 30));
+        sizePolicy1.setHeightForWidth(setStart->sizePolicy().hasHeightForWidth());
+        setStart->setSizePolicy(sizePolicy1);
+        setEnd = new QPushButton(centralWidget);
+        setEnd->setObjectName(QString::fromUtf8("setEnd"));
+        setEnd->setGeometry(QRect(1020, 410, 111, 30));
+        sizePolicy1.setHeightForWidth(setEnd->sizePolicy().hasHeightForWidth());
+        setEnd->setSizePolicy(sizePolicy1);
+        regin = new QComboBox(centralWidget);
+        regin->addItem(QString());
+        regin->addItem(QString());
+        regin->addItem(QString());
+        regin->addItem(QString());
+        regin->setObjectName(QString::fromUtf8("regin"));
+        regin->setGeometry(QRect(1030, 260, 91, 31));
+        label_50 = new QLabel(centralWidget);
+        label_50->setObjectName(QString::fromUtf8("label_50"));
+        label_50->setGeometry(QRect(290, 290, 38, 31));
+        sweepSpeed = new QLineEdit(centralWidget);
+        sweepSpeed->setObjectName(QString::fromUtf8("sweepSpeed"));
+        sweepSpeed->setGeometry(QRect(450, 480, 101, 31));
+        sizePolicy.setHeightForWidth(sweepSpeed->sizePolicy().hasHeightForWidth());
+        sweepSpeed->setSizePolicy(sizePolicy);
+        sweepSpeed->setFont(font);
+        label_21 = new QLabel(centralWidget);
+        label_21->setObjectName(QString::fromUtf8("label_21"));
+        label_21->setGeometry(QRect(340, 480, 111, 31));
+        startScanBtn = new QPushButton(centralWidget);
+        startScanBtn->setObjectName(QString::fromUtf8("startScanBtn"));
+        startScanBtn->setGeometry(QRect(300, 580, 121, 28));
+        stopScanBtn = new QPushButton(centralWidget);
+        stopScanBtn->setObjectName(QString::fromUtf8("stopScanBtn"));
+        stopScanBtn->setGeometry(QRect(450, 580, 121, 28));
+        endScanBtn = new QPushButton(centralWidget);
+        endScanBtn->setObjectName(QString::fromUtf8("endScanBtn"));
+        endScanBtn->setGeometry(QRect(600, 580, 121, 28));
+        xCurPos = new QLabel(centralWidget);
+        xCurPos->setObjectName(QString::fromUtf8("xCurPos"));
+        xCurPos->setGeometry(QRect(570, 130, 91, 21));
+        yCurPos = new QLabel(centralWidget);
+        yCurPos->setObjectName(QString::fromUtf8("yCurPos"));
+        yCurPos->setGeometry(QRect(570, 160, 91, 21));
+        zCurPos = new QLabel(centralWidget);
+        zCurPos->setObjectName(QString::fromUtf8("zCurPos"));
+        zCurPos->setGeometry(QRect(570, 200, 91, 21));
+        rCurPos = new QLabel(centralWidget);
+        rCurPos->setObjectName(QString::fromUtf8("rCurPos"));
+        rCurPos->setGeometry(QRect(570, 240, 91, 21));
+        y_step = new QLineEdit(centralWidget);
+        y_step->setObjectName(QString::fromUtf8("y_step"));
+        y_step->setGeometry(QRect(450, 422, 101, 31));
+        sizePolicy.setHeightForWidth(y_step->sizePolicy().hasHeightForWidth());
+        y_step->setSizePolicy(sizePolicy);
+        y_step->setFont(font);
+        label_18 = new QLabel(centralWidget);
+        label_18->setObjectName(QString::fromUtf8("label_18"));
+        label_18->setGeometry(QRect(559, 350, 20, 53));
+        x_lenght = new QLineEdit(centralWidget);
+        x_lenght->setObjectName(QString::fromUtf8("x_lenght"));
+        x_lenght->setGeometry(QRect(450, 302, 101, 31));
+        sizePolicy.setHeightForWidth(x_lenght->sizePolicy().hasHeightForWidth());
+        x_lenght->setSizePolicy(sizePolicy);
+        x_lenght->setFont(font);
+        label_17 = new QLabel(centralWidget);
+        label_17->setObjectName(QString::fromUtf8("label_17"));
+        label_17->setGeometry(QRect(560, 290, 20, 53));
+        label_19 = new QLabel(centralWidget);
+        label_19->setObjectName(QString::fromUtf8("label_19"));
+        label_19->setGeometry(QRect(560, 410, 20, 53));
+        y_lenght = new QLineEdit(centralWidget);
+        y_lenght->setObjectName(QString::fromUtf8("y_lenght"));
+        y_lenght->setGeometry(QRect(450, 362, 101, 31));
+        sizePolicy.setHeightForWidth(y_lenght->sizePolicy().hasHeightForWidth());
+        y_lenght->setSizePolicy(sizePolicy);
+        y_lenght->setFont(font);
+        label_22 = new QLabel(centralWidget);
+        label_22->setObjectName(QString::fromUtf8("label_22"));
+        label_22->setGeometry(QRect(340, 300, 101, 31));
+        label_23 = new QLabel(centralWidget);
+        label_23->setObjectName(QString::fromUtf8("label_23"));
+        label_23->setGeometry(QRect(340, 360, 101, 31));
+        label_24 = new QLabel(centralWidget);
+        label_24->setObjectName(QString::fromUtf8("label_24"));
+        label_24->setGeometry(QRect(340, 420, 101, 31));
+        MainWindow->setCentralWidget(centralWidget);
+        menuBar = new QMenuBar(MainWindow);
+        menuBar->setObjectName(QString::fromUtf8("menuBar"));
+        menuBar->setGeometry(QRect(0, 0, 1135, 21));
+        MainWindow->setMenuBar(menuBar);
+        mainToolBar = new QToolBar(MainWindow);
+        mainToolBar->setObjectName(QString::fromUtf8("mainToolBar"));
+        MainWindow->addToolBar(Qt::TopToolBarArea, mainToolBar);
+        statusBar = new QStatusBar(MainWindow);
+        statusBar->setObjectName(QString::fromUtf8("statusBar"));
+        MainWindow->setStatusBar(statusBar);
+
+        retranslateUi(MainWindow);
+
+        QMetaObject::connectSlotsByName(MainWindow);
+    } // setupUi
+
+    void retranslateUi(QMainWindow *MainWindow)
+    {
+        MainWindow->setWindowTitle(QApplication::translate("MainWindow", "MainWindow", nullptr));
+        label_31->setText(QApplication::translate("MainWindow", "z\350\275\264\344\275\215\347\275\256:", nullptr));
+        label_20->setText(QApplication::translate("MainWindow", "\345\233\236\345\216\237\347\202\271\351\200\237\345\272\246\357\274\232", nullptr));
+        rSubBtn->setText(QApplication::translate("MainWindow", "R-", nullptr));
+        label_37->setText(QApplication::translate("MainWindow", "mm", nullptr));
+        label_32->setText(QApplication::translate("MainWindow", "mm/s", nullptr));
+        label_36->setText(QApplication::translate("MainWindow", "mm", nullptr));
+        groupBox->setTitle(QString());
+        connectBtn->setText(QApplication::translate("MainWindow", "connect", nullptr));
+        label_28->setText(QApplication::translate("MainWindow", "Port:", nullptr));
+        port_Edit2->setText(QApplication::translate("MainWindow", "502", nullptr));
+        IP_Edit->setText(QApplication::translate("MainWindow", "192.168.1.101", nullptr));
+        label_27->setText(QApplication::translate("MainWindow", "IP2:", nullptr));
+        IP_Edit2->setText(QApplication::translate("MainWindow", "192.168.1.102", nullptr));
+        label_2->setText(QApplication::translate("MainWindow", "Port:", nullptr));
+        label->setText(QApplication::translate("MainWindow", "IP1:", nullptr));
+        port_Edit->setText(QApplication::translate("MainWindow", "502", nullptr));
+        zAddBtn->setText(QApplication::translate("MainWindow", "Z+", nullptr));
+        zSubBtn->setText(QApplication::translate("MainWindow", "Z-", nullptr));
+        label_29->setText(QApplication::translate("MainWindow", "r\350\275\264\344\275\215\347\275\256:", nullptr));
+        xSubBtn->setText(QApplication::translate("MainWindow", "X-", nullptr));
+        backZeroScanBtn->setText(QApplication::translate("MainWindow", "\345\233\236\345\216\237", nullptr));
+        yAddBtn->setText(QApplication::translate("MainWindow", "Y+", nullptr));
+        ySubBtn->setText(QApplication::translate("MainWindow", "Y-", nullptr));
+        xAddBtn->setText(QApplication::translate("MainWindow", "X+", nullptr));
+        rAddBtn->setText(QApplication::translate("MainWindow", "R+", nullptr));
+        resetScanBtn->setText(QApplication::translate("MainWindow", "\345\244\215\344\275\215", nullptr));
+        label_13->setText(QApplication::translate("MainWindow", "\347\202\271\345\212\250\351\200\237\345\272\246\357\274\232", nullptr));
+        setMOrigin->setText(QApplication::translate("MainWindow", "\350\256\276\347\275\256\351\233\266\347\202\271", nullptr));
+        label_33->setText(QApplication::translate("MainWindow", "y\350\275\264\344\275\215\347\275\256:", nullptr));
+        label_38->setText(QApplication::translate("MainWindow", "mm", nullptr));
+        label_39->setText(QApplication::translate("MainWindow", "mm", nullptr));
+        label_34->setText(QApplication::translate("MainWindow", "x\350\275\264\344\275\215\347\275\256:", nullptr));
+        label_35->setText(QApplication::translate("MainWindow", "X:", nullptr));
+        label_14->setText(QApplication::translate("MainWindow", "\345\216\237\347\202\271\351\200\237\345\272\246\357\274\232", nullptr));
+        label_40->setText(QApplication::translate("MainWindow", "mm/s", nullptr));
+        label_41->setText(QApplication::translate("MainWindow", "mm/s", nullptr));
+        label_15->setText(QApplication::translate("MainWindow", "\350\265\267\347\202\271\351\200\237\345\272\246\357\274\232", nullptr));
+        label_42->setText(QApplication::translate("MainWindow", "mm/s", nullptr));
+        label_16->setText(QApplication::translate("MainWindow", "\347\273\210\347\202\271\351\200\237\345\272\246\357\274\232", nullptr));
+        endSpeed->setText(QString());
+        label_43->setText(QApplication::translate("MainWindow", "x\350\275\264\344\275\215\347\275\256\357\274\232", nullptr));
+        label_44->setText(QApplication::translate("MainWindow", "y\350\275\264\344\275\215\347\275\256\357\274\232", nullptr));
+        label_45->setText(QApplication::translate("MainWindow", "z\350\275\264\344\275\215\347\275\256\357\274\232", nullptr));
+        label_46->setText(QApplication::translate("MainWindow", "r\350\275\264\344\275\215\347\275\256\357\274\232", nullptr));
+        comboBox->setItemText(0, QApplication::translate("MainWindow", "1", nullptr));
+        comboBox->setItemText(1, QApplication::translate("MainWindow", "2", nullptr));
+        comboBox->setItemText(2, QApplication::translate("MainWindow", "3", nullptr));
+        comboBox->setItemText(3, QApplication::translate("MainWindow", "4", nullptr));
+
+        label_3->setText(QApplication::translate("MainWindow", "\346\243\200\346\265\213\345\214\272\345\237\237\357\274\232", nullptr));
+        label_47->setText(QApplication::translate("MainWindow", "Y:", nullptr));
+        label_48->setText(QApplication::translate("MainWindow", "Z:", nullptr));
+        label_49->setText(QApplication::translate("MainWindow", "R:", nullptr));
+        setOrigin->setText(QApplication::translate("MainWindow", "\350\256\276\347\275\256\345\216\237\347\202\271", nullptr));
+        setStart->setText(QApplication::translate("MainWindow", "\350\256\276\347\275\256\350\265\267\347\202\271", nullptr));
+        setEnd->setText(QApplication::translate("MainWindow", "\350\256\276\347\275\256\347\273\210\347\202\271", nullptr));
+        regin->setItemText(0, QApplication::translate("MainWindow", "\345\214\272\345\237\2371", nullptr));
+        regin->setItemText(1, QApplication::translate("MainWindow", "\345\214\272\345\237\2372", nullptr));
+        regin->setItemText(2, QApplication::translate("MainWindow", "\345\214\272\345\237\2373", nullptr));
+        regin->setItemText(3, QApplication::translate("MainWindow", "\345\214\272\345\237\2374", nullptr));
+
+        label_50->setText(QApplication::translate("MainWindow", "mm/s", nullptr));
+        label_21->setText(QApplication::translate("MainWindow", "\346\211\253\346\237\245\351\200\237\345\272\246\357\274\232", nullptr));
+        startScanBtn->setText(QApplication::translate("MainWindow", "\345\274\200\345\247\213", nullptr));
+        stopScanBtn->setText(QApplication::translate("MainWindow", "\346\232\202\345\201\234", nullptr));
+        endScanBtn->setText(QApplication::translate("MainWindow", "\347\273\223\346\235\237", nullptr));
+        xCurPos->setText(QString());
+        yCurPos->setText(QString());
+        zCurPos->setText(QString());
+        rCurPos->setText(QString());
+        label_18->setText(QApplication::translate("MainWindow", "mm", nullptr));
+        label_17->setText(QApplication::translate("MainWindow", "mm", nullptr));
+        label_19->setText(QApplication::translate("MainWindow", "mm", nullptr));
+        label_22->setText(QApplication::translate("MainWindow", "\346\211\253\346\237\245X\350\275\264\357\274\232", nullptr));
+        label_23->setText(QApplication::translate("MainWindow", "\346\211\253\346\237\245Y\350\275\264\357\274\232", nullptr));
+        label_24->setText(QApplication::translate("MainWindow", "Y\350\275\264\346\255\245\350\277\233\357\274\232", nullptr));
+    } // retranslateUi
+
+};
+
+namespace Ui {
+    class MainWindow: public Ui_MainWindow {};
+} // namespace Ui
+
+QT_END_NAMESPACE
+
+#endif // UI_MAINWINDOW_H
