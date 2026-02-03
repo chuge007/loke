@@ -7,6 +7,10 @@
 
 #include "scancontroltaida.h"
 #include "scancontrolhuichuan.h"
+struct Point2D {
+    float x;
+    float y;
+};
 
 namespace Ui {
 class MainWindow;
@@ -19,6 +23,23 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+
+    int currentPathIndex = 0;
+    std::vector<Point2D> path;
+    QTimer* arriveTimer = nullptr;
+
+     bool stopScan;
+
+
+    void sendNextPoint();
+    void MainWindow::startArriveCheck(const Point2D& target);
+
+    std::vector<Point2D> generateBowScanPathDense(
+            float xLength,
+            float yLength,
+            float yStep
+        );
+
 
     QSettings *settings;
     int origin;
@@ -36,6 +57,15 @@ public:
     int ye;
 
     int sweep;
+
+
+    float xlenght;
+    float ylenght;
+    float step;
+
+    Point2D position;
+
+
 private:
     void initWidget();
     void connectFun();
@@ -43,13 +73,18 @@ private:
     void saveseting();
 private slots:
 
-    void updatePosition(QPointF pos);
-    void updatePosition2(QPointF pos);
+    void scanEnd();
+
+    void on_connectBtn_clicked();
+
+    void updatePosition(float pos);
+    void updatePosition2(float pos);
     void setMOrigin();
 
     void setOrigin();
     void setStart();
     void setEnd();
+    void on_backZero();
 
     void backOrigin_velocity();
     void jog_velocity();
@@ -60,6 +95,7 @@ private slots:
     void regin();
 
 
+    void setBtn();
 private:
     Ui::MainWindow *ui;
 
@@ -67,7 +103,7 @@ private:
     ScanControlAbstract *scanCtrl2;
 
     ScanControlHuiChuan *scanCtrlHunChuan;
-    ScanControlTaiDa *scanCtrlTaiDa;
+    ScanControlHuiChuan *scanCtrlTaiDa;
 
 };
 
