@@ -277,7 +277,7 @@ void ScanControlHuiChuan::on_connectBtn_clicked()
 
 
 
-
+    timer->start();
 
     // 连接成功
     connect(tcpSocket, &QTcpSocket::connected, this, [this]{
@@ -348,7 +348,7 @@ void ScanControlHuiChuan::on_connectBtn_clicked()
                 if (frameLen == 0) {
                     // 未知命令，丢掉 1 字节，继续找
                     rxBuffer.remove(0, 1);
-                    continue;
+                    return;
                 }
 
                 if (rxBuffer.size() < frameLen)
@@ -367,7 +367,7 @@ void ScanControlHuiChuan::on_connectBtn_clicked()
                 if (cmd_sum != calc_sum) {
                     qDebug() << "[CMD checksum error] cmd:" << QString::number(cmd,16)
                              << "frame:" << frame.toHex();
-                    continue; // 丢掉当前帧
+                    return; // 丢掉当前帧
                 }
 
                 if (cmd == 0x92){
@@ -606,7 +606,6 @@ void ScanControlHuiChuan::init()
     timer = new QTimer(this);
     timer->setInterval(400);
     connect(timer, &QTimer::timeout, this, &ScanControlHuiChuan::performTasks);
-    timer->start();
     tcpSocket=new QTcpSocket(this);
 
 }
