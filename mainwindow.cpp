@@ -599,7 +599,7 @@ void MainWindow::startArriveCheck(Point2D target)
         return;
     }
 
-    arriveTarget = pathPointToPhysicalTargets(target);
+    arriveTarget = target;
     arriveActive = true;
     arriveResendCount = 0;
     arriveLastDist = -1.0f;
@@ -627,10 +627,18 @@ void MainWindow::startArriveCheck(Point2D target)
             return;
         }
 
-        // 当前距离（物理坐标直接比，不再按 UI 轴反复换算）
-        float dx = arriveTarget.x - position.x;
-        float dy = arriveTarget.y - position.y;
-        float dist = std::sqrt(dx*dx + dy*dy);
+        // 当前距离：arriveTarget 保持逻辑扫查/步进坐标，position 保持 UI X/Y 坐标，
+        // 按当前扫查轴做一次映射后再比较，避免把物理坐标和逻辑坐标混用。
+        float dist;
+        if (ui->comboBox_2->currentIndex() == 0) {
+            float dx = arriveTarget.x - position.x;
+            float dy = arriveTarget.y - position.y;
+            dist = std::sqrt(dx*dx + dy*dy);
+        } else {
+            float dx = arriveTarget.y - position.x;
+            float dy = arriveTarget.x - position.y;
+            dist = std::sqrt(dx*dx + dy*dy);
+        }
 
         // 距离明显在缩短(>0.2mm) 视为正在运动，重置 stall 计时
         if (arriveLastDist < 0 || arriveLastDist - dist > 0.2f) {
@@ -649,19 +657,19 @@ void MainWindow::startArriveCheck(Point2D target)
             // 这里直接复用：currentPathIndex 不变，临时把它降一格再调 sendNextPoint，
             // 但 sendNextPoint 会把 prev 取成 path[currentPathIndex-1]，依然准确。
             // 简化做法：直接重发 X、Y 命令，不动 currentPathIndex。
-            const Point2D target = arriveTarget;
+            const Point2D targetPhysical = pathPointToPhysicalTargets(arriveTarget);
             const uint32_t xMaxSpeed = axisCommandSpeed(true);
             const uint32_t yMaxSpeed = axisCommandSpeed(false);
 
             scanCtrl->pushsend = true;
             scanCtrl->motorId  = 0x02;
-            scanCtrl->runPosintion(mmToAngleControl(target.x), xMaxSpeed);
+            scanCtrl->runPosintion(mmToAngleControl(targetPhysical.x), xMaxSpeed);
             scanCtrl->pushsend = false;
 
-            QTimer::singleShot(50, this, [this, target, yMaxSpeed]() {
+            QTimer::singleShot(50, this, [this, targetPhysical, yMaxSpeed]() {
                 scanCtrl->pushsend = true;
                 scanCtrl->motorId  = 0x01;
-                scanCtrl->runPosintion(mmToAngleControl(target.y), yMaxSpeed);
+                scanCtrl->runPosintion(mmToAngleControl(targetPhysical.y), yMaxSpeed);
                 scanCtrl->pushsend = false;
             });
             return;
@@ -689,9 +697,16 @@ void MainWindow::checkArrival()
 {
     if (!arriveActive || stopScan || !firstPosReceived) return;
 
-    float dx = arriveTarget.x - position.x;
-    float dy = arriveTarget.y - position.y;
-    float dist = std::sqrt(dx*dx + dy*dy);
+    float dist;
+    if (ui->comboBox_2->currentIndex() == 0) {
+        float dx = arriveTarget.x - position.x;
+        float dy = arriveTarget.y - position.y;
+        dist = std::sqrt(dx*dx + dy*dy);
+    } else {
+        float dx = arriveTarget.y - position.x;
+        float dy = arriveTarget.x - position.y;
+        dist = std::sqrt(dx*dx + dy*dy);
+    }
 
     if (dist < 0.5f) {
         qDebug() << "Arrived idx:" << currentPathIndex << "dist:" << dist;

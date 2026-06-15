@@ -39,7 +39,7 @@ public:
      // 后立刻调用 checkArrival()，到位/超时就推进；arriveTimer 只是兜底超时器。
      bool firstPosReceived = false;     // 至少收到一次真实位置回包
      bool arriveActive = false;         // 当前是否在等待到位
-     Point2D arriveTarget = {0, 0};     // 当前目标点(物理电机坐标)
+     Point2D arriveTarget = {0, 0};     // 当前目标点(逻辑扫查/步进坐标)
      QElapsedTimer arriveElapsed;       // 单点到位超时计时
      int  arriveResendCount = 0;        // 防呆：当前点已重发次数(粘帧丢命令时救命)
      float arriveLastDist = -1.0f;      // 上次兜底 tick 时的距离，用于侦测卡死
