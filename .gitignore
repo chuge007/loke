@@ -1,0 +1,38 @@
+# Build outputs
+debug/
+release/
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.dll
+*.exe
+
+# Qt generated
+Makefile
+Makefile.*
+.qmake.stash
+ui_*.h
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+
+# Qt Creator user settings
+*.user
+*.user.*
+*.autosave
+
+# Archives committed earlier
+debug.zip
+release.zip
+
+# SDL3 prebuilt libs are huge; keep headers/cmake but skip lib binaries
+SDL3-3.2.16/lib/
+
+# OS / IDE
+.vs/
+.vscode/
+*.swp
+Thumbs.db
+.DS_Store
