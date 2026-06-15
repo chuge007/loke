@@ -1305,6 +1305,19 @@
      <string>循环执行</string>
     </property>
    </widget>
+   <widget class="QCheckBox" name="freeMotionCheck">
+    <property name="geometry">
+     <rect>
+      <x>340</x>
+      <y>440</y>
+      <width>151</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>自由运动</string>
+    </property>
+   </widget>
    <widget class="QCheckBox" name="invertXCheck">
     <property name="geometry">
      <rect>

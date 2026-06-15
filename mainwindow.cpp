@@ -49,6 +49,7 @@ void MainWindow::saveseting(){
 
     // 三个勾选状态持久化，下次打开保持上次设置
     settings->setValue("loopScan",   ui->loopScanCheck->isChecked());
+    settings->setValue("freeMotion", ui->freeMotionCheck->isChecked());
     settings->setValue("invertX",    ui->invertXCheck->isChecked());
     settings->setValue("invertY",    ui->invertYCheck->isChecked());
 
@@ -140,6 +141,7 @@ void MainWindow::initWidget()
 
     // 三个勾选状态：默认全不勾，从配置回读
     ui->loopScanCheck->setChecked(settings->value("loopScan", false).toBool());
+    ui->freeMotionCheck->setChecked(settings->value("freeMotion", false).toBool());
     ui->invertXCheck->setChecked(settings->value("invertX",  false).toBool());
     ui->invertYCheck->setChecked(settings->value("invertY",  false).toBool());
 
@@ -202,6 +204,10 @@ void MainWindow::connectFun()
 
     connect(ui->startScanBtn, &QPushButton::clicked, this, &MainWindow::setStart);
     connect(ui->stopScanBtn, &QPushButton::clicked, scanCtrl, &ScanControlAbstract::on_stop);
+    connect(ui->stopScanBtn, &QPushButton::clicked, this, [this]() {
+        stopFreeMotion();
+        arriveActive = false;
+    });
 
     connect(ui->backZeroScanBtn, &QPushButton::clicked, this, &MainWindow::on_backZero);
     connect(ui->endScanBtn, &QPushButton::clicked, this, &MainWindow::scanEnd);
@@ -234,6 +240,13 @@ void MainWindow::connectFun()
     connect(ui->invertXCheck, &QCheckBox::toggled, this, syncInvert);
     connect(ui->invertYCheck, &QCheckBox::toggled, this, syncInvert);
     // 循环执行勾选变化也写盘
+    connect(ui->freeMotionCheck, &QCheckBox::toggled, this, [this](bool checked){
+        if (!checked) {
+            stopFreeMotion();
+            scanCtrl->on_stop();
+        }
+        saveseting();
+    });
     connect(ui->loopScanCheck, &QCheckBox::toggled, this, [this](bool){ saveseting(); });
     syncInvert();   // 初始态同步一次（不会重复写盘，因为值没变）
 
@@ -274,7 +287,8 @@ void MainWindow::updatePosition(float pos)
     position.x = v;
     firstPosReceived = true;
     ui->xCurPos->setText(QString::number(v, 'f', 2));
-    if (arriveActive) checkArrival();
+    if (freeMotionActive) checkFreeMotionX();
+    else if (arriveActive) checkArrival();
 }
 
 void MainWindow::updatePosition2(float pos)
@@ -284,7 +298,8 @@ void MainWindow::updatePosition2(float pos)
     position.y = v;
     firstPosReceived = true;
     ui->yCurPos->setText(QString::number(v, 'f', 2));
-    if (arriveActive) checkArrival();
+    if (freeMotionActive) checkFreeMotionY();
+    else if (arriveActive) checkArrival();
 }
 
 
@@ -350,6 +365,93 @@ Point2D MainWindow::pathPointToPhysicalTargets(const Point2D& point) const
     if (ui->invertXCheck->isChecked()) targets.x = -targets.x;
     if (ui->invertYCheck->isChecked()) targets.y = -targets.y;
     return targets;
+}
+
+void MainWindow::sendXAxisUiTarget(double targetUiX, uint32_t maxSpeed)
+{
+    double xPhysical = -targetUiX;
+    if (ui->invertXCheck->isChecked()) xPhysical = -xPhysical;
+    scanCtrl->pushsend = true;
+    scanCtrl->motorId  = 0x02;
+    scanCtrl->runPosintion(mmToAngleControl(xPhysical), maxSpeed);
+    scanCtrl->pushsend = false;
+}
+
+void MainWindow::sendYAxisUiTarget(double targetUiY, uint32_t maxSpeed)
+{
+    double yPhysical = targetUiY;
+    if (ui->invertYCheck->isChecked()) yPhysical = -yPhysical;
+    scanCtrl->pushsend = true;
+    scanCtrl->motorId  = 0x01;
+    scanCtrl->runPosintion(mmToAngleControl(yPhysical), maxSpeed);
+    scanCtrl->pushsend = false;
+}
+
+void MainWindow::stopFreeMotion()
+{
+    freeMotionActive = false;
+    freeMotionAxisXEnabled = false;
+    freeMotionAxisYEnabled = false;
+    freeMotionRangeX = 0.0f;
+    freeMotionRangeY = 0.0f;
+    freeMotionTargetX = 0.0f;
+    freeMotionTargetY = 0.0f;
+}
+
+void MainWindow::startFreeMotion()
+{
+    stopFreeMotion();
+
+    arriveActive = false;
+    if (arriveTimer) {
+        arriveTimer->stop();
+        arriveTimer->deleteLater();
+        arriveTimer = nullptr;
+    }
+
+    const bool scanAxisIsX = (ui->comboBox_2->currentIndex() == 0);
+    const float scanRange = ui->x_lenght->text().toFloat();
+    const float stepRange = ui->y_lenght->text().toFloat();
+
+    freeMotionRangeX = scanAxisIsX ? scanRange : stepRange;
+    freeMotionRangeY = scanAxisIsX ? stepRange : scanRange;
+
+    freeMotionAxisXEnabled = !qFuzzyIsNull(freeMotionRangeX);
+    freeMotionAxisYEnabled = !qFuzzyIsNull(freeMotionRangeY);
+    freeMotionTargetX = freeMotionAxisXEnabled ? freeMotionRangeX : 0.0f;
+    freeMotionTargetY = freeMotionAxisYEnabled ? freeMotionRangeY : 0.0f;
+    freeMotionActive = freeMotionAxisXEnabled || freeMotionAxisYEnabled;
+
+    if (!freeMotionActive) return;
+
+    if (freeMotionAxisXEnabled) {
+        sendXAxisUiTarget(freeMotionTargetX, axisCommandSpeed(true));
+    }
+    if (freeMotionAxisYEnabled) {
+        auto sendY = [this]() {
+            sendYAxisUiTarget(freeMotionTargetY, axisCommandSpeed(false));
+        };
+        if (freeMotionAxisXEnabled) QTimer::singleShot(50, this, sendY);
+        else sendY();
+    }
+}
+
+void MainWindow::checkFreeMotionX()
+{
+    if (!freeMotionActive || !freeMotionAxisXEnabled || stopScan) return;
+    if (std::fabs(position.x - freeMotionTargetX) >= 0.5f) return;
+
+    freeMotionTargetX = (std::fabs(freeMotionTargetX) < 0.01f) ? freeMotionRangeX : 0.0f;
+    sendXAxisUiTarget(freeMotionTargetX, axisCommandSpeed(true));
+}
+
+void MainWindow::checkFreeMotionY()
+{
+    if (!freeMotionActive || !freeMotionAxisYEnabled || stopScan) return;
+    if (std::fabs(position.y - freeMotionTargetY) >= 0.5f) return;
+
+    freeMotionTargetY = (std::fabs(freeMotionTargetY) < 0.01f) ? freeMotionRangeY : 0.0f;
+    sendYAxisUiTarget(freeMotionTargetY, axisCommandSpeed(false));
 }
 
 
@@ -448,6 +550,9 @@ void MainWindow::setOrigin(){
 }
 
 void MainWindow::on_backZero(){
+
+    stopFreeMotion();
+    arriveActive = false;
 
 
     int64_t angleControly = mmToAngleControl(0);
@@ -744,14 +849,30 @@ void MainWindow::setStart(){
 
     xlenght=ui->x_lenght->text().toFloat();
     ylenght=ui->y_lenght->text().toFloat();
-    step=ui->y_step->text().toFloat();
 
-    path = generateBowScanPathDense(xlenght, ylenght, step);  // 原路径生成函数
-    // 保存路径
-    if(path.empty()) return;
+    stopFreeMotion();
+    step=ui->y_step->text().toFloat();
 
     stopScan=false;
 
+
+    if (ui->freeMotionCheck->isChecked()) {
+        startFreeMotion();
+        if (!freeMotionActive) {
+            ui->xAddBtn->setEnabled(true);
+            ui->xSubBtn->setEnabled(true);
+            ui->yAddBtn->setEnabled(true);
+            ui->ySubBtn->setEnabled(true);
+            ui->backOrigin_velocity->setEnabled(true);
+            ui->jog_velocity->setEnabled(true);
+            ui->setMOrigin->setEnabled(true);
+        }
+        saveseting();
+        return;
+    }
+
+    path = generateBowScanPathDense(xlenght, ylenght, step);  // 鍘熻矾寰勭敓鎴愬嚱鏁?    // 淇濆瓨璺緞
+    if(path.empty()) return;
     // 启动扫描前重置位置接收标志，强制等到一次新的真实位置回包再判到位，
     // 防止用上一次残留的 position 误判 path[0]=(0,0) 已到位。
     firstPosReceived = false;
@@ -767,6 +888,8 @@ void MainWindow::setStart(){
 void MainWindow::scanEnd(){
 
     stopScan=true;
+    stopFreeMotion();
+    arriveActive = false;
 
     if(arriveTimer){
         arriveTimer->stop();

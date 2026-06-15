@@ -5,6 +5,7 @@
 #include <QDoubleValidator>
 #include <QCheckBox>
 #include <QElapsedTimer>
+#include <QTimer>
 
 
 
@@ -32,26 +33,36 @@ public:
     std::vector<Point2D> path;
     QTimer* arriveTimer = nullptr;
 
-     bool stopScan;
+    bool stopScan;
 
-     // ---- 事件驱动到位检测 ----
-     // 不再用 50ms 轮询比较位置，改成：每次 updatePosition* 收到真实位置回包
-     // 后立刻调用 checkArrival()，到位/超时就推进；arriveTimer 只是兜底超时器。
-     bool firstPosReceived = false;     // 至少收到一次真实位置回包
-     bool arriveActive = false;         // 当前是否在等待到位
-     Point2D arriveTarget = {0, 0};     // 当前目标点(逻辑扫查/步进坐标)
-     QElapsedTimer arriveElapsed;       // 单点到位超时计时
-     int  arriveResendCount = 0;        // 防呆：当前点已重发次数(粘帧丢命令时救命)
-     float arriveLastDist = -1.0f;      // 上次兜底 tick 时的距离，用于侦测卡死
-     QElapsedTimer arriveStallSince;    // 距离不再缩短的起始时刻
-     void checkArrival();
+    // ---- 事件驱动到位检测 ----
+    // 不再用 50ms 轮询比较位置，改成：每次 updatePosition* 收到真实位置回包
+    // 后立刻调用 checkArrival()，到位/超时就推进；arriveTimer 只是兜底超时器。
+    bool firstPosReceived = false;
+    bool arriveActive = false;
+    Point2D arriveTarget = {0, 0};
+    QElapsedTimer arriveElapsed;
+    int arriveResendCount = 0;
+    float arriveLastDist = -1.0f;
+    QElapsedTimer arriveStallSince;
+    void checkArrival();
 
-
-
-
+    bool freeMotionActive = false;
+    bool freeMotionAxisXEnabled = false;
+    bool freeMotionAxisYEnabled = false;
+    float freeMotionRangeX = 0.0f;
+    float freeMotionRangeY = 0.0f;
+    float freeMotionTargetX = 0.0f;
+    float freeMotionTargetY = 0.0f;
 
     uint32_t axisCommandSpeed(bool isXAxisCommand) const;
     Point2D pathPointToPhysicalTargets(const Point2D& point) const;
+    void sendXAxisUiTarget(double targetUiX, uint32_t maxSpeed);
+    void sendYAxisUiTarget(double targetUiY, uint32_t maxSpeed);
+    void startFreeMotion();
+    void stopFreeMotion();
+    void checkFreeMotionX();
+    void checkFreeMotionY();
     void sendNextPoint();
     void startArriveCheck(Point2D target);
 
