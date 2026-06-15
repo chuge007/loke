@@ -58,6 +58,8 @@ void MainWindow::saveseting(){
     settings->setValue("originSpeed",         ui->originSpeed->text());
     settings->setValue("startSpeed",          ui->startSpeed->text());
     settings->setValue("endSpeed",            ui->endSpeed->text());
+    settings->setValue("stepSpeed",           ui->stepSpeed->text());
+
 
     // 扫查轴下拉、检测区域下拉、Region 下拉
     settings->setValue("scanAxis",   ui->comboBox_2->currentIndex());
@@ -89,6 +91,7 @@ void MainWindow::saveseting(){
 
 
     settings->setValue("sweepSpeed", ui->sweepSpeed->text());
+    settings->setValue("stepSpeed", ui->stepSpeed->text());
 
     settings->endGroup();
     settings->sync();  // 强制写入磁盘
@@ -112,6 +115,7 @@ void MainWindow::initWidget()
 
 
     ui->sweepSpeed->setText(settings->value("sweepSpeed", "").toString());
+    ui->stepSpeed->setText(settings->value("stepSpeed", "").toString());
 
     ui->x_lenght->setText(settings->value("xlenght", "").toString());
     ui->y_lenght->setText(settings->value("ylenght", "").toString());
@@ -122,6 +126,7 @@ void MainWindow::initWidget()
     if (groups.contains(activePiece)) {
 
         ui->sweepSpeed->setText(settings->value("sweepSpeed", "").toString());
+        ui->stepSpeed->setText(settings->value("stepSpeed", "").toString());
 
         ui->x_lenght->setText(settings->value("xlenght", "").toString());
         ui->y_lenght->setText(settings->value("ylenght", "").toString());
@@ -142,6 +147,8 @@ void MainWindow::initWidget()
     ui->originSpeed->setText(settings->value("originSpeed", "").toString());
     ui->startSpeed ->setText(settings->value("startSpeed",  "").toString());
     ui->endSpeed   ->setText(settings->value("endSpeed",    "").toString());
+    ui->stepSpeed  ->setText(settings->value("stepSpeed",   "").toString());
+
     ui->comboBox_2 ->setCurrentIndex(settings->value("scanAxis",   0).toInt());
     ui->comboBox   ->setCurrentIndex(settings->value("detectArea", 0).toInt());
     ui->regin      ->setCurrentIndex(settings->value("regionIdx",  0).toInt());
@@ -157,6 +164,14 @@ void MainWindow::initWidget()
     ui->inputy_4->setText(settings->value("inputy_4", "").toString());
     ui->inputz_4->setText(settings->value("inputz_4", "").toString());
     ui->inputr_4->setText(settings->value("inputr_4", "").toString());
+
+    auto *scanSpeedValidator = new QDoubleValidator(0.0, 999999.0, 3, this);
+    scanSpeedValidator->setNotation(QDoubleValidator::StandardNotation);
+    ui->sweepSpeed->setValidator(scanSpeedValidator);
+
+    auto *stepSpeedValidator = new QDoubleValidator(0.0, 999999.0, 3, this);
+    stepSpeedValidator->setNotation(QDoubleValidator::StandardNotation);
+    ui->stepSpeed->setValidator(stepSpeedValidator);
 
     scanCtrl->setModbusTcpIP(ui->IP_Edit->text());
 
@@ -229,7 +244,8 @@ void MainWindow::connectFun()
         ui->sweepSpeed,
         ui->x_lenght, ui->y_lenght, ui->y_step,
         ui->backOrigin_velocity, ui->jog_velocity,
-        ui->originSpeed, ui->startSpeed, ui->endSpeed,
+        ui->originSpeed, ui->startSpeed, ui->endSpeed, ui->stepSpeed,
+
         ui->inputx_2, ui->inputy_2, ui->inputz_2, ui->inputr_2,
         ui->inputx_3, ui->inputy_3, ui->inputz_3, ui->inputr_3,
         ui->inputx_4, ui->inputy_4, ui->inputz_4, ui->inputr_4,
@@ -302,6 +318,38 @@ void MainWindow::startSpeed(){
 void MainWindow::endSpeed(){
 
     saveseting();
+}
+
+uint32_t MainWindow::axisCommandSpeed(bool isXAxisCommand) const
+{
+    const bool scanAxisIsX = (ui->comboBox_2->currentIndex() == 0);
+    const double sweepDps = ui->sweepSpeed->text().toDouble();
+    double stepDps = ui->stepSpeed->text().toDouble();
+    if (!(stepDps > 0.0)) {
+        stepDps = sweepDps;
+    }
+
+    const bool isScanAxisCommand = isXAxisCommand ? scanAxisIsX : !scanAxisIsX;
+    const double dps = isScanAxisCommand ? sweepDps : stepDps;
+    return uint32_t(dps * 6000.0);
+}
+
+Point2D MainWindow::pathPointToPhysicalTargets(const Point2D& point) const
+{
+    Point2D targets;
+    const bool scanAxisIsX = (ui->comboBox_2->currentIndex() == 0);
+
+    if (scanAxisIsX) {
+        targets.x = -point.x;
+        targets.y =  point.y;
+    } else {
+        targets.x = -point.y;
+        targets.y =  point.x;
+    }
+
+    if (ui->invertXCheck->isChecked()) targets.x = -targets.x;
+    if (ui->invertYCheck->isChecked()) targets.y = -targets.y;
+    return targets;
 }
 
 
@@ -481,48 +529,51 @@ void MainWindow::sendNextPoint()
     Point2D prev{0.0f, 0.0f};
     if (currentPathIndex > 0) prev = path[currentPathIndex - 1];
 
-    bool xChanged = std::fabs(p.x - prev.x) > 0.01f;
-    bool yChanged = std::fabs(p.y - prev.y) > 0.01f;
-    // 第一点：电机不一定真的在原点，强制把两个轴都发一遍当作"go-home"
-    if (currentPathIndex == 0) { xChanged = true; yChanged = true; }
+    const Point2D currentTargets = pathPointToPhysicalTargets(p);
+    const Point2D previousTargets = pathPointToPhysicalTargets(prev);
+
+    bool xMotorChanged = std::fabs(currentTargets.x - previousTargets.x) > 0.01f;
+    bool yMotorChanged = std::fabs(currentTargets.y - previousTargets.y) > 0.01f;
+    // 第一点：电机不一定真的在原点，强制把两个物理轴都发一遍当作"go-home"
+    if (currentPathIndex == 0) { xMotorChanged = true; yMotorChanged = true; }
 
     qDebug() << "Move to:" << p.x << p.y
              << "from:" << prev.x << prev.y
-             << "X?" << xChanged << "Y?" << yChanged;
+             << "motorX?" << xMotorChanged << "motorY?" << yMotorChanged;
 
-    double speedDps = ui->sweepSpeed->text().toDouble();
-    uint32_t maxSpeed = static_cast<uint32_t>(speedDps * 6000.0);
+    // 速度选择规则：
+    //   - 扫查轴是 x：X 方向变化用扫查速度，Y 方向变化是步进 → 用步进速度
+    //   - 扫查轴是 y：Y 方向变化用扫查速度，X 方向变化是步进 → 用步进速度
+    //   - 第一点 go-home：X、Y 各自用对应"扫查方向"的扫查速度兜底
+    //   - 步进速度若没填或非法，回退到扫查速度，避免 0 速命令把电机锁住
+    const uint32_t xMaxSpeed = axisCommandSpeed(true);
+    const uint32_t yMaxSpeed = axisCommandSpeed(false);
 
-    auto sendX = [this, p, maxSpeed]() {
-        double targetMmx = (ui->comboBox_2->currentIndex() == 0) ? p.x : p.y;
-        double xPhysical = -targetMmx;
-        if (ui->invertXCheck->isChecked()) xPhysical = -xPhysical;
+    auto sendX = [this, currentTargets, xMaxSpeed]() {
         scanCtrl->pushsend = true;
         scanCtrl->motorId  = 0x02;
-        scanCtrl->runPosintion(mmToAngleControl(xPhysical), maxSpeed);
+        scanCtrl->runPosintion(mmToAngleControl(currentTargets.x), xMaxSpeed);
         scanCtrl->pushsend = false;
     };
-    auto sendY = [this, p, maxSpeed]() {
-        double targetMmy = (ui->comboBox_2->currentIndex() == 1) ? p.x : p.y;
-        double yPhysical = targetMmy;
-        if (ui->invertYCheck->isChecked()) yPhysical = -yPhysical;
+    auto sendY = [this, currentTargets, yMaxSpeed]() {
         scanCtrl->pushsend = true;
         scanCtrl->motorId  = 0x01;
-        scanCtrl->runPosintion(mmToAngleControl(yPhysical), maxSpeed);
+        scanCtrl->runPosintion(mmToAngleControl(currentTargets.y), yMaxSpeed);
         scanCtrl->pushsend = false;
     };
 
-    if (xChanged && yChanged) {
+    if (xMotorChanged && yMotorChanged) {
         // 两轴都要动：X 立即发，Y 隔 50ms 防粘帧（保留原有节拍）
         sendX();
         QTimer::singleShot(50, this, sendY);
-    } else if (xChanged) {
+    } else if (xMotorChanged) {
         // 只动 X：直接发，没有可粘帧的对象
         sendX();
-    } else if (yChanged) {
+    } else if (yMotorChanged) {
         // 只动 Y：直接发，省掉以前那条没用的 X 废命令
         sendY();
     }
+
     // 都没变：电机已就位，直接进到位检测，会立刻命中
 
     startArriveCheck(p);
@@ -536,7 +587,7 @@ void MainWindow::sendNextPoint()
 // arriveTimer 只作为"超时兜底"：
 //   - 3s 内连一次位置回包都没收到 → TCP 异常，停扫查；
 //   - 单点 15s 还没到位 → 强制推进，避免永久卡死。
-void MainWindow::startArriveCheck(const Point2D& target)
+void MainWindow::startArriveCheck(Point2D target)
 {
     if(arriveTimer){
         arriveTimer->stop();
@@ -548,7 +599,7 @@ void MainWindow::startArriveCheck(const Point2D& target)
         return;
     }
 
-    arriveTarget = target;
+    arriveTarget = pathPointToPhysicalTargets(target);
     arriveActive = true;
     arriveResendCount = 0;
     arriveLastDist = -1.0f;
@@ -576,17 +627,10 @@ void MainWindow::startArriveCheck(const Point2D& target)
             return;
         }
 
-        // 当前距离
-        float dist;
-        if (ui->comboBox_2->currentIndex() == 0) {
-            float dx = arriveTarget.x - position.x;
-            float dy = arriveTarget.y - position.y;
-            dist = std::sqrt(dx*dx + dy*dy);
-        } else {
-            float dx = arriveTarget.y - position.x;
-            float dy = arriveTarget.x - position.y;
-            dist = std::sqrt(dx*dx + dy*dy);
-        }
+        // 当前距离（物理坐标直接比，不再按 UI 轴反复换算）
+        float dx = arriveTarget.x - position.x;
+        float dy = arriveTarget.y - position.y;
+        float dist = std::sqrt(dx*dx + dy*dy);
 
         // 距离明显在缩短(>0.2mm) 视为正在运动，重置 stall 计时
         if (arriveLastDist < 0 || arriveLastDist - dist > 0.2f) {
@@ -605,25 +649,19 @@ void MainWindow::startArriveCheck(const Point2D& target)
             // 这里直接复用：currentPathIndex 不变，临时把它降一格再调 sendNextPoint，
             // 但 sendNextPoint 会把 prev 取成 path[currentPathIndex-1]，依然准确。
             // 简化做法：直接重发 X、Y 命令，不动 currentPathIndex。
-            const Point2D p = arriveTarget;
-            const double speedDps = ui->sweepSpeed->text().toDouble();
-            const uint32_t maxSpeed = static_cast<uint32_t>(speedDps * 6000.0);
+            const Point2D target = arriveTarget;
+            const uint32_t xMaxSpeed = axisCommandSpeed(true);
+            const uint32_t yMaxSpeed = axisCommandSpeed(false);
 
-            double targetMmx = (ui->comboBox_2->currentIndex() == 0) ? p.x : p.y;
-            double xPhysical = -targetMmx;
-            if (ui->invertXCheck->isChecked()) xPhysical = -xPhysical;
             scanCtrl->pushsend = true;
             scanCtrl->motorId  = 0x02;
-            scanCtrl->runPosintion(mmToAngleControl(xPhysical), maxSpeed);
+            scanCtrl->runPosintion(mmToAngleControl(target.x), xMaxSpeed);
             scanCtrl->pushsend = false;
 
-            QTimer::singleShot(50, this, [this, p, maxSpeed]() {
-                double targetMmy = (ui->comboBox_2->currentIndex() == 1) ? p.x : p.y;
-                double yPhysical = targetMmy;
-                if (ui->invertYCheck->isChecked()) yPhysical = -yPhysical;
+            QTimer::singleShot(50, this, [this, target, yMaxSpeed]() {
                 scanCtrl->pushsend = true;
                 scanCtrl->motorId  = 0x01;
-                scanCtrl->runPosintion(mmToAngleControl(yPhysical), maxSpeed);
+                scanCtrl->runPosintion(mmToAngleControl(target.y), yMaxSpeed);
                 scanCtrl->pushsend = false;
             });
             return;
@@ -651,16 +689,9 @@ void MainWindow::checkArrival()
 {
     if (!arriveActive || stopScan || !firstPosReceived) return;
 
-    float dist;
-    if (ui->comboBox_2->currentIndex() == 0) {
-        float dx = arriveTarget.x - position.x;
-        float dy = arriveTarget.y - position.y;
-        dist = std::sqrt(dx*dx + dy*dy);
-    } else {
-        float dx = arriveTarget.y - position.x;
-        float dy = arriveTarget.x - position.y;
-        dist = std::sqrt(dx*dx + dy*dy);
-    }
+    float dx = arriveTarget.x - position.x;
+    float dy = arriveTarget.y - position.y;
+    float dist = std::sqrt(dx*dx + dy*dy);
 
     if (dist < 0.5f) {
         qDebug() << "Arrived idx:" << currentPathIndex << "dist:" << dist;
@@ -867,6 +898,7 @@ void MainWindow::regin(){
         ui->inputr_4->setText(settings->value("inputr_4", "").toString());
 
         ui->sweepSpeed->setText(settings->value("sweepSpeed", "").toString());
+        ui->stepSpeed->setText(settings->value("stepSpeed", "").toString());
     }
 
     settings->endGroup();

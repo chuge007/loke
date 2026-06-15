@@ -1207,7 +1207,7 @@
     <property name="geometry">
      <rect>
       <x>770</x>
-      <y>340</y>
+      <y>300</y>
       <width>101</width>
       <height>31</height>
      </rect>
@@ -1228,7 +1228,7 @@
     <property name="geometry">
      <rect>
       <x>660</x>
-      <y>340</y>
+      <y>300</y>
       <width>111</width>
       <height>31</height>
      </rect>
@@ -1237,6 +1237,48 @@
      <string>扫查速度：</string>
     </property>
    </widget>
+   <widget class="QLineEdit" name="stepSpeed">
+    <property name="geometry">
+     <rect>
+      <x>770</x>
+      <y>340</y>
+      <width>101</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>15</pointsize>
+     </font>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_stepSpeed">
+    <property name="geometry">
+     <rect>
+      <x>660</x>
+      <y>340</y>
+      <width>111</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>步进速度：</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_stepSpeedUnit">
+    <property name="geometry">
+     <rect>
+      <x>880</x>
+      <y>340</y>
+      <width>61</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>mm/s</string>
+    </property>
+   </widget>
+
    <widget class="QPushButton" name="startScanBtn">
     <property name="geometry">
      <rect>
