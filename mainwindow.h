@@ -47,6 +47,12 @@ public:
     QElapsedTimer arriveStallSince;
     void checkArrival();
 
+    // 扫查过程统计，扫查结束时输出一行汇总
+    QElapsedTimer scanElapsed;
+    int scanResendTotal = 0;      //卡滞重发次数
+    int scanForcedTotal = 0;      //超时强制跳点次数(这些点可能漏扫)
+    void enableManualControls();
+
     bool freeMotionActive = false;
     bool freeMotionAxisXEnabled = false;
     bool freeMotionAxisYEnabled = false;

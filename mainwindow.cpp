@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "modbusconfig.h"
+#include "locke_log.h"
 
 #include <QDir>
 #include <QDebug>
@@ -48,6 +49,7 @@ void MainWindow::saveseting(){
     settings->setValue("step", ui->y_step->text());
 
     // 三个勾选状态持久化，下次打开保持上次设置
+    settings->setValue("autoBackOrigin", ui->autoBackOriginCheck->isChecked());
     settings->setValue("loopScan",   ui->loopScanCheck->isChecked());
     settings->setValue("freeMotion", ui->freeMotionCheck->isChecked());
     settings->setValue("invertX",    ui->invertXCheck->isChecked());
@@ -141,6 +143,7 @@ void MainWindow::initWidget()
 
     // 三个勾选状态：默认全不勾，从配置回读
     ui->loopScanCheck->setChecked(settings->value("loopScan", false).toBool());
+    ui->autoBackOriginCheck->setChecked(settings->value("autoBackOrigin", false).toBool());
     ui->freeMotionCheck->setChecked(settings->value("freeMotion", false).toBool());
     ui->invertXCheck->setChecked(settings->value("invertX",  false).toBool());
     ui->invertYCheck->setChecked(settings->value("invertY",  false).toBool());
@@ -192,19 +195,29 @@ void MainWindow::connectFun()
     connect(scanCtrl, &ScanControlAbstract::tcpStateChange,
             this, [this](bool connected) {
         ui->connectBtn->setText(connected ? "discon" : "conect");
-
+        if (!connected) {
+            // 断线后旧位置已不可信，显示占位符并要求重新收到回包后才参与到位判定
+            firstPosReceived = false;
+            ui->xCurPos->setText("--");
+            ui->yCurPos->setText("--");
+        }
     });
+    ui->xCurPos->setText("--");
+    ui->yCurPos->setText("--");
 
 
     connect(scanCtrl, &ScanControlAbstract::positionChangex, this, &MainWindow::updatePosition);
     connect(scanCtrl, &ScanControlAbstract::positionChangey, this, &MainWindow::updatePosition2);
 
-    connect(ui->connectBtn, &QPushButton::clicked, scanCtrl, &ScanControlAbstract::on_connectBtn_clicked);
+    // 先把界面上的 IP/端口写进控制器，再发起连接，否则修改 IP 后第一次点击仍连旧地址
     connect(ui->connectBtn, &QPushButton::clicked, this, &MainWindow::on_connectBtn_clicked);
+    connect(ui->connectBtn, &QPushButton::clicked, scanCtrl, &ScanControlAbstract::on_connectBtn_clicked);
 
     connect(ui->startScanBtn, &QPushButton::clicked, this, &MainWindow::setStart);
     connect(ui->stopScanBtn, &QPushButton::clicked, scanCtrl, &ScanControlAbstract::on_stop);
     connect(ui->stopScanBtn, &QPushButton::clicked, this, [this]() {
+        qCInfo(lcUi) << "点击 暂停, 当前点" << currentPathIndex << "/" << path.size()
+                     << "位置" << position.x << position.y;
         stopFreeMotion();
         arriveActive = false;
     });
@@ -233,6 +246,8 @@ void MainWindow::connectFun()
 
     // 把 X/Y 反向勾选同步到控制器，让点动按键方向也跟着翻
     auto syncInvert = [this]() {
+        qCInfo(lcUi) << "方向设置: X反向" << ui->invertXCheck->isChecked()
+                     << "Y反向" << ui->invertYCheck->isChecked();
         scanCtrl->invertXAxis = ui->invertXCheck->isChecked();
         scanCtrl->invertYAxis = ui->invertYCheck->isChecked();
         saveseting();   // 勾选变化立即落盘，避免崩溃丢配置
@@ -241,13 +256,21 @@ void MainWindow::connectFun()
     connect(ui->invertYCheck, &QCheckBox::toggled, this, syncInvert);
     // 循环执行勾选变化也写盘
     connect(ui->freeMotionCheck, &QCheckBox::toggled, this, [this](bool checked){
+        qCInfo(lcUi) << "自由运动" << (checked ? "勾选" : "取消");
         if (!checked) {
             stopFreeMotion();
             scanCtrl->on_stop();
         }
         saveseting();
     });
-    connect(ui->loopScanCheck, &QCheckBox::toggled, this, [this](bool){ saveseting(); });
+    connect(ui->autoBackOriginCheck, &QCheckBox::toggled, this, [this](bool checked){
+        qCInfo(lcUi) << "自动回原" << (checked ? "勾选" : "取消");
+        saveseting();
+    });
+    connect(ui->loopScanCheck, &QCheckBox::toggled, this, [this](bool checked){
+        qCInfo(lcUi) << "循环执行" << (checked ? "勾选" : "取消");
+        saveseting();
+    });
     syncInvert();   // 初始态同步一次（不会重复写盘，因为值没变）
 
     // 所有输入框 editingFinished 即落盘；下拉框 currentIndexChanged 即落盘
@@ -316,7 +339,9 @@ void MainWindow::backOrigin_velocity(){
 void MainWindow::jog_velocity(){
 
     scanCtrl->speed=ui->jog_velocity->text().toFloat()*6000;
-    qDebug()<<"jog_velocity:"<< scanCtrl->speed;
+    qCInfo(lcUi) << "点动速度设为" << ui->jog_velocity->text() << "mm/s";
+    if (!(ui->jog_velocity->text().toDouble() > 0.0))
+        qCWarning(lcUi) << "点动速度 <= 0，点动按钮将不会让电机运动";
     saveseting();
 }
 
@@ -371,20 +396,16 @@ void MainWindow::sendXAxisUiTarget(double targetUiX, uint32_t maxSpeed)
 {
     double xPhysical = -targetUiX;
     if (ui->invertXCheck->isChecked()) xPhysical = -xPhysical;
-    scanCtrl->pushsend = true;
     scanCtrl->motorId  = 0x02;
     scanCtrl->runPosintion(mmToAngleControl(xPhysical), maxSpeed);
-    scanCtrl->pushsend = false;
 }
 
 void MainWindow::sendYAxisUiTarget(double targetUiY, uint32_t maxSpeed)
 {
     double yPhysical = targetUiY;
     if (ui->invertYCheck->isChecked()) yPhysical = -yPhysical;
-    scanCtrl->pushsend = true;
     scanCtrl->motorId  = 0x01;
     scanCtrl->runPosintion(mmToAngleControl(yPhysical), maxSpeed);
-    scanCtrl->pushsend = false;
 }
 
 void MainWindow::stopFreeMotion()
@@ -442,6 +463,7 @@ void MainWindow::checkFreeMotionX()
     if (std::fabs(position.x - freeMotionTargetX) >= 0.5f) return;
 
     freeMotionTargetX = (std::fabs(freeMotionTargetX) < 0.01f) ? freeMotionRangeX : 0.0f;
+    qCDebug(lcScan) << "自由运动 X 换向, 新目标" << freeMotionTargetX;
     sendXAxisUiTarget(freeMotionTargetX, axisCommandSpeed(true));
 }
 
@@ -451,6 +473,7 @@ void MainWindow::checkFreeMotionY()
     if (std::fabs(position.y - freeMotionTargetY) >= 0.5f) return;
 
     freeMotionTargetY = (std::fabs(freeMotionTargetY) < 0.01f) ? freeMotionRangeY : 0.0f;
+    qCDebug(lcScan) << "自由运动 Y 换向, 新目标" << freeMotionTargetY;
     sendYAxisUiTarget(freeMotionTargetY, axisCommandSpeed(false));
 }
 
@@ -478,9 +501,8 @@ std::vector<Point2D> MainWindow::generateBowScanPathDense(
     if (qFuzzyIsNull(yLength) || qFuzzyIsNull(yStep)) {
         if (!qFuzzyIsNull(xLength)) {
             path.push_back({xLength, 0.0f});
-            path.push_back({0.0f,    0.0f});
         }
-        qDebug() << "path size:" << path.size() << "(single-axis sweep)";
+        qCInfo(lcScan) << "生成路径点数:" << path.size() << "(single-axis sweep)";
         return path;
     }
 
@@ -517,7 +539,7 @@ std::vector<Point2D> MainWindow::generateBowScanPathDense(
         leftToRight = !leftToRight;
     }
 
-    qDebug() << "path size:" << path.size()
+    qCInfo(lcScan) << "生成路径点数:" << path.size()
              << "xLen:" << xLength << "yLen:" << yLength << "yStep:" << yStep;
     return path;
 }
@@ -551,6 +573,10 @@ void MainWindow::setOrigin(){
 
 void MainWindow::on_backZero(){
 
+    qCInfo(lcScan) << "回原: 当前位置" << position.x << position.y
+                   << "回原速度" << ui->backOrigin_velocity->text() << "mm/s";
+    if (!(ui->backOrigin_velocity->text().toDouble() > 0.0))
+        qCWarning(lcScan) << "回原速度 <= 0，电机不会运动";
     stopFreeMotion();
     arriveActive = false;
 
@@ -560,8 +586,7 @@ void MainWindow::on_backZero(){
 
     uint32_t maxSpeed = static_cast<uint32_t>(ui->backOrigin_velocity->text().toDouble() * 6000.0);
 
-    scanCtrl->pushsend=true;
-
+    // 两轴回零命令进入控制器发送队列串行发出，期间位置轮询照常进行
     scanCtrl->motorId=0x02;
 
     scanCtrl->runPosintion(angleControly, maxSpeed);
@@ -574,10 +599,6 @@ void MainWindow::on_backZero(){
         scanCtrl->runPosintion(angleControlx, maxSpeed);
 
 
-    });
-
-    QTimer::singleShot(120, [this]() {
-        scanCtrl->pushsend=false;
     });
 
     ui->xAddBtn->setEnabled(true);
@@ -600,14 +621,20 @@ void MainWindow::on_backZero(){
 void MainWindow::sendNextPoint()
 {
     if(currentPathIndex >= path.size()){
-        qDebug() << "Path finished";
+        const qint64 usedMs = scanElapsed.isValid() ? scanElapsed.elapsed() : 0;
+        qCInfo(lcScan) << "扫查完成: 共" << path.size() << "点, 用时" << usedMs / 1000.0 << "s"
+                       << "卡滞重发" << scanResendTotal << "次, 超时跳点" << scanForcedTotal << "次";
+        if (scanForcedTotal > 0)
+            qCWarning(lcScan) << "本轮有" << scanForcedTotal << "个点超时未到位被跳过，这些位置可能漏扫";
 
-        // Loop scan: when enabled and not stopped, go back to origin
-        // using home speed, then restart scan from the first scan point.
-        // path[0] is origin itself; arrive-check on origin will trigger
-        // sendNextPoint() again with currentPathIndex == 1.
-        if(!stopScan && ui->loopScanCheck->isChecked()){
-            qDebug() << "Loop scan: back to origin then restart";
+        // 只有勾选“自动回原”时，才允许回原并按循环配置继续扫查。
+        if(!stopScan
+                && ui->autoBackOriginCheck->isChecked()
+                && ui->loopScanCheck->isChecked()){
+            qCInfo(lcScan) << "循环执行: 回原后开始下一轮";
+            scanElapsed.start();
+            scanResendTotal = 0;
+            scanForcedTotal = 0;
 
             on_backZero();
 
@@ -619,8 +646,26 @@ void MainWindow::sendNextPoint()
             return;
         }
 
-        // Non-loop: scan finished, go back to origin and stop.
-        on_backZero();
+        // 未勾选自动回原时，扫查完成后直接停止在当前位置。
+        if (ui->autoBackOriginCheck->isChecked()) {
+            on_backZero();
+        } else {
+            stopScan = true;
+            stopFreeMotion();
+            arriveActive = false;
+            if (arriveTimer) {
+                arriveTimer->stop();
+                arriveTimer->deleteLater();
+                arriveTimer = nullptr;
+            }
+            ui->xAddBtn->setEnabled(true);
+            ui->xSubBtn->setEnabled(true);
+            ui->yAddBtn->setEnabled(true);
+            ui->ySubBtn->setEnabled(true);
+            ui->backOrigin_velocity->setEnabled(true);
+            ui->jog_velocity->setEnabled(true);
+            ui->setMOrigin->setEnabled(true);
+        }
         return;
 
 
@@ -642,9 +687,10 @@ void MainWindow::sendNextPoint()
     // 第一点：电机不一定真的在原点，强制把两个物理轴都发一遍当作"go-home"
     if (currentPathIndex == 0) { xMotorChanged = true; yMotorChanged = true; }
 
-    qDebug() << "Move to:" << p.x << p.y
-             << "from:" << prev.x << prev.y
-             << "motorX?" << xMotorChanged << "motorY?" << yMotorChanged;
+    qCInfo(lcScan) << "点" << currentPathIndex + 1 << "/" << path.size()
+                   << "目标(扫查,步进)" << p.x << p.y
+                   << "电机坐标(X,Y)" << currentTargets.x << currentTargets.y
+                   << "下发X" << xMotorChanged << "下发Y" << yMotorChanged;
 
     // 速度选择规则：
     //   - 扫查轴是 x：X 方向变化用扫查速度，Y 方向变化是步进 → 用步进速度
@@ -655,16 +701,12 @@ void MainWindow::sendNextPoint()
     const uint32_t yMaxSpeed = axisCommandSpeed(false);
 
     auto sendX = [this, currentTargets, xMaxSpeed]() {
-        scanCtrl->pushsend = true;
         scanCtrl->motorId  = 0x02;
         scanCtrl->runPosintion(mmToAngleControl(currentTargets.x), xMaxSpeed);
-        scanCtrl->pushsend = false;
     };
     auto sendY = [this, currentTargets, yMaxSpeed]() {
-        scanCtrl->pushsend = true;
         scanCtrl->motorId  = 0x01;
         scanCtrl->runPosintion(mmToAngleControl(currentTargets.y), yMaxSpeed);
-        scanCtrl->pushsend = false;
     };
 
     if (xMotorChanged && yMotorChanged) {
@@ -722,12 +764,13 @@ void MainWindow::startArriveCheck(Point2D target)
         }
         if (!firstPosReceived) {
             if (arriveElapsed.elapsed() > 3000) {
-                qDebug() << "[ARRIVE] no position reply within 3s, abort scan";
+                qCCritical(lcScan) << "扫查中止: 3s 内没有收到任何位置回包，检查网关连接和电机通讯";
                 arriveActive = false;
                 stopScan = true;
                 arriveTimer->stop();
                 arriveTimer->deleteLater();
                 arriveTimer = nullptr;
+                enableManualControls();
             }
             return;
         }
@@ -755,8 +798,10 @@ void MainWindow::startArriveCheck(Point2D target)
         // 最多重发 2 次，仍然不动才认输强制推进。
         if (dist > 1.0f && arriveStallSince.elapsed() > 2000 && arriveResendCount < 2) {
             ++arriveResendCount;
-            qDebug() << "[ARRIVE] stall detected, resend cmd #" << arriveResendCount
-                     << "idx=" << currentPathIndex << "dist=" << dist;
+            ++scanResendTotal;
+            qCWarning(lcScan) << "点" << currentPathIndex + 1 << "卡滞 2s 未靠近，第" << arriveResendCount << "次重发"
+                              << "目标" << arriveTarget.x << arriveTarget.y
+                              << "当前位置" << position.x << position.y << "距离" << dist << "mm";
             arriveStallSince.restart();
             // 重发：暂存路径下标，调用一次 sendNextPoint 的命令下发逻辑会重新比 prev → p。
             // 这里直接复用：currentPathIndex 不变，临时把它降一格再调 sendNextPoint，
@@ -766,24 +811,23 @@ void MainWindow::startArriveCheck(Point2D target)
             const uint32_t xMaxSpeed = axisCommandSpeed(true);
             const uint32_t yMaxSpeed = axisCommandSpeed(false);
 
-            scanCtrl->pushsend = true;
             scanCtrl->motorId  = 0x02;
             scanCtrl->runPosintion(mmToAngleControl(targetPhysical.x), xMaxSpeed);
-            scanCtrl->pushsend = false;
 
             QTimer::singleShot(50, this, [this, targetPhysical, yMaxSpeed]() {
-                scanCtrl->pushsend = true;
                 scanCtrl->motorId  = 0x01;
                 scanCtrl->runPosintion(mmToAngleControl(targetPhysical.y), yMaxSpeed);
-                scanCtrl->pushsend = false;
             });
             return;
         }
 
         // 单点 8s 兜底超时（重发 2 次都没救回来才走到这）
         if (arriveElapsed.elapsed() > 8000) {
-            qDebug() << "[ARRIVE] timeout, force advance. idx=" << currentPathIndex
-                     << "dist=" << dist << "resends=" << arriveResendCount;
+            ++scanForcedTotal;
+            qCWarning(lcScan) << "点" << currentPathIndex + 1 << "8s 未到位，强制跳到下一点(可能漏扫)"
+                              << "目标" << arriveTarget.x << arriveTarget.y
+                              << "当前位置" << position.x << position.y << "距离" << dist << "mm"
+                              << "已重发" << arriveResendCount << "次";
             arriveActive = false;
             arriveTimer->stop();
             arriveTimer->deleteLater();
@@ -814,7 +858,8 @@ void MainWindow::checkArrival()
     }
 
     if (dist < 0.5f) {
-        qDebug() << "Arrived idx:" << currentPathIndex << "dist:" << dist;
+        qCInfo(lcScan) << "点" << currentPathIndex + 1 << "到位, 误差" << dist << "mm, 耗时"
+                       << arriveElapsed.elapsed() << "ms";
         arriveActive = false;
         if (arriveTimer) {
             arriveTimer->stop();
@@ -858,7 +903,9 @@ void MainWindow::setStart(){
 
     if (ui->freeMotionCheck->isChecked()) {
         startFreeMotion();
+        qCInfo(lcScan) << "开始自由运动: X范围" << freeMotionRangeX << "Y范围" << freeMotionRangeY;
         if (!freeMotionActive) {
+            qCWarning(lcScan) << "自由运动未启动: 扫查轴长和步进轴长都为 0";
             ui->xAddBtn->setEnabled(true);
             ui->xSubBtn->setEnabled(true);
             ui->yAddBtn->setEnabled(true);
@@ -871,11 +918,28 @@ void MainWindow::setStart(){
         return;
     }
 
-    path = generateBowScanPathDense(xlenght, ylenght, step);  // 鍘熻矾寰勭敓鎴愬嚱鏁?    // 淇濆瓨璺緞
-    if(path.empty()) return;
+    path = generateBowScanPathDense(xlenght, ylenght, step);
+    if(path.empty()) {
+        qCWarning(lcScan) << "路径为空，未开始扫查: 检查扫查轴长/步进轴长/步进长度";
+        enableManualControls();
+        return;
+    }
     // 启动扫描前重置位置接收标志，强制等到一次新的真实位置回包再判到位，
     // 防止用上一次残留的 position 误判 path[0]=(0,0) 已到位。
     firstPosReceived = false;
+
+    qCInfo(lcScan) << "开始扫查: 扫查轴" << ui->comboBox_2->currentText()
+                   << "扫查轴长" << xlenght << "步进轴长" << ylenght << "步进" << step
+                   << "扫查速度" << ui->sweepSpeed->text() << "步进速度" << ui->stepSpeed->text()
+                   << "自动回原" << ui->autoBackOriginCheck->isChecked()
+                   << "循环" << ui->loopScanCheck->isChecked()
+                   << "X反向" << ui->invertXCheck->isChecked() << "Y反向" << ui->invertYCheck->isChecked()
+                   << "起始位置" << position.x << position.y;
+    if (!(ui->sweepSpeed->text().toDouble() > 0.0))
+        qCWarning(lcScan) << "扫查速度 <= 0，电机可能不动，随后会出现卡滞重发/超时跳点";
+    scanElapsed.start();
+    scanResendTotal = 0;
+    scanForcedTotal = 0;
 
     currentPathIndex = 0;
     sendNextPoint();
@@ -885,8 +949,21 @@ void MainWindow::setStart(){
 
 }
 
+void MainWindow::enableManualControls()
+{
+    ui->xAddBtn->setEnabled(true);
+    ui->xSubBtn->setEnabled(true);
+    ui->yAddBtn->setEnabled(true);
+    ui->ySubBtn->setEnabled(true);
+    ui->backOrigin_velocity->setEnabled(true);
+    ui->jog_velocity->setEnabled(true);
+    ui->setMOrigin->setEnabled(true);
+}
+
 void MainWindow::scanEnd(){
 
+    qCInfo(lcUi) << "点击 结束, 当前点" << currentPathIndex << "/" << path.size()
+                 << "位置" << position.x << position.y;
     stopScan=true;
     stopFreeMotion();
     arriveActive = false;
@@ -922,6 +999,7 @@ void MainWindow::setEnd(){
 
 void MainWindow::setMOrigin(){
 
+    qCInfo(lcUi) << "点击 设置零点, 当前界面位置" << position.x << position.y;
 
     scanCtrl->on_setOriginBtn_clicked();
     saveseting();

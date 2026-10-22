@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
@@ -1303,6 +1303,19 @@
     </property>
     <property name="text">
      <string>循环执行</string>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="autoBackOriginCheck">
+    <property name="geometry">
+     <rect>
+      <x>500</x>
+      <y>410</y>
+      <width>151</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>自动回原</string>
     </property>
    </widget>
    <widget class="QCheckBox" name="freeMotionCheck">

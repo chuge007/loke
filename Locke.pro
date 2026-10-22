@@ -40,6 +40,7 @@ SOURCES += \
         scancontroltaida.cpp
 
 HEADERS += \
+        locke_log.h \
         mainwindow.h \
         modbusconfig.h \
         scancontrolabstract.h \

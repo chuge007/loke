@@ -4,6 +4,7 @@
 #include "scancontrolabstract.h"
 #include <QMutex>
 #include <QTcpSocket>
+#include <QElapsedTimer>
 
 class ScanControlHuiChuan : public ScanControlAbstract
 {
@@ -79,6 +80,13 @@ private:
     void updataCurrentPos();        //更新当前点位置
     void perfromJogTasks();         //点动
 
+    // 所有发往网关的帧统一走这里排队，由 performTasks 串行发出，
+    // 避免控制指令和 0x92 位置查询在半双工总线上撞帧导致位置回包丢失。
+    void enqueueFrame(const QByteArray& frame, bool urgent = false);
+    bool writeFrame(const QByteArray& frame);
+    void resetBusState();
+    void reportStats();             //周期输出通讯健康统计
+
 
 
 private:
@@ -88,6 +96,33 @@ private:
     QSettings *settings = nullptr;
     QTimer *timer = nullptr;
     QByteArray rxBuffer;
+
+    QQueue<QByteArray> txQueue;     //待发送帧队列(控制指令优先于位置查询)
+    QElapsedTimer busIdle;          //距上一次发帧/收到位置回包的时间
+    QElapsedTimer posReplyWait;     //当前位置查询已等待时间
+    int rejectCountX = 0;           //X 连续跳变拒绝次数
+    int rejectCountY = 0;           //Y 连续跳变拒绝次数
+
+    // 单轴通讯统计：窗口计数在每次 reportStats 后清零
+    struct AxisStats {
+        int queries = 0;            //发出的位置查询
+        int replies = 0;            //按时收到的回包
+        int timeouts = 0;           //超时次数
+        int late = 0;               //迟到/多余回包
+        int rejects = 0;            //被跳变/量程过滤丢掉的值
+        int timeoutStreak = 0;      //连续超时(不随窗口清零)
+        QElapsedTimer sinceUpdate;  //距上一次被接受的位置
+    };
+    AxisStats statX;
+    AxisStats statY;
+    AxisStats& axisStat(uint8_t axisId) { return axisId == 2 ? statX : statY; }
+    QElapsedTimer statWindow;       //统计窗口计时
+    int statCmdFrames = 0;          //窗口内发出的控制指令帧
+    int statWriteFails = 0;         //窗口内写 socket 失败
+    int statQueueDrops = 0;         //窗口内队列溢出丢弃
+    int statQueuePeak = 0;          //窗口内队列峰值
+    int statJunkBytes = 0;          //窗口内丢弃的非位置字节(含指令应答)
+    bool userDisconnect = false;    //是否为操作员主动断开
 
 
 

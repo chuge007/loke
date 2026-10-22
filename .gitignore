@@ -36,3 +36,7 @@ SDL3-3.2.16/lib/
 *.swp
 Thumbs.db
 .DS_Store
+
+# Qt Creator clangd cache / shadow build
+.qtc_clangd/
+build/
