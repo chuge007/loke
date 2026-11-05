@@ -41,6 +41,8 @@ public:
     bool firstPosReceived = false;
     bool arriveActive = false;
     Point2D arriveTarget = {0, 0};
+    bool arriveCheckX = false;  // 是否检测X轴到位
+    bool arriveCheckY = false;  // 是否检测Y轴到位
     QElapsedTimer arriveElapsed;
     int arriveResendCount = 0;
     float arriveLastDist = -1.0f;
@@ -70,7 +72,7 @@ public:
     void checkFreeMotionX();
     void checkFreeMotionY();
     void sendNextPoint();
-    void startArriveCheck(Point2D target);
+    void startArriveCheck(Point2D target, bool checkX, bool checkY);
 
     std::vector<Point2D> generateBowScanPathDense(
             float xLength,

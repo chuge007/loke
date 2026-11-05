@@ -156,7 +156,7 @@ void ScanControlHuiChuan::processFrame(const QByteArray& frame)
     // ===== 长度校验 =====
     // CMD(5) + DATA(7) = 12 byte
     if (frame.size() < 12) {
-        qDebug() << "[0x90] length error:" << frame.size();
+        qCDebug(lcBus) << "[0x90] 帧长错误:" << frame.size();
         return;
     }
 
@@ -164,7 +164,7 @@ void ScanControlHuiChuan::processFrame(const QByteArray& frame)
 
     // ===== 帧头校验 =====
     if (buf[0] != 0x3E || buf[1] != 0x90) {
-        qDebug() << "[0x90] header error";
+        qCDebug(lcBus) << "[0x90] 帧头错误:" << frame.toHex(' ').toUpper();
         return;
     }
 
@@ -175,7 +175,7 @@ void ScanControlHuiChuan::processFrame(const QByteArray& frame)
     // ===== CMD 校验 =====
     uint8_t calc_cmd_sum = buf[0] + buf[1] + buf[2] + buf[3];
     if (cmd_sum != calc_cmd_sum) {
-        qDebug() << "[0x90] CMD checksum error";
+        qCDebug(lcBus) << "[0x90] 命令校验错误:" << frame.toHex(' ').toUpper();
         return;
     }
 
@@ -189,7 +189,7 @@ void ScanControlHuiChuan::processFrame(const QByteArray& frame)
     }
 
     if (data_sum != calc_data_sum) {
-        qDebug() << "[0x90] DATA checksum error";
+        qCDebug(lcBus) << "[0x90] 数据校验错误:" << frame.toHex(' ').toUpper();
         return;
     }
 
@@ -204,7 +204,7 @@ void ScanControlHuiChuan::processFrame(const QByteArray& frame)
             (uint16_t)(buf[dataIndex + 5] << 8 | buf[dataIndex + 4]);
 
     // ===== 输出 =====
-    qDebug() << "[0x90] ID:" << id
+    qCDebug(lcPos) << "[0x90] ID:" << id
              << "Encoder:" << encoder
              << "Raw:" << encoderRaw
              << "Offset:" << encoderOffset;
@@ -218,13 +218,13 @@ void ScanControlHuiChuan::processFrame(const QByteArray& frame)
 
 void ScanControlHuiChuan::processFrame92(const QByteArray& frame)
 {
-    qDebug() << "[0x92] processFrame92 收到帧, size:" << frame.size()
+    qCDebug(lcBus) << "[0x92] 收到帧, size:" << frame.size()
              << "hex:" << frame.toHex(' ');
 
     // ===== 长度校验 =====
     // CMD(5) + DATA(9) = 14 byte
     if (frame.size() < 14) {
-        qDebug() << "[0x92] length error:" << frame.size();
+        qCDebug(lcBus) << "[0x92] 帧长错误:" << frame.size();
         return;
     }
 
@@ -233,7 +233,7 @@ void ScanControlHuiChuan::processFrame92(const QByteArray& frame)
 
     // ===== 帧头 + 命令校验 =====
     if (buf[0] != 0x3E || buf[1] != 0x92) {
-        qDebug() << "[0x92] header error";
+        qCDebug(lcBus) << "[0x92] 帧头错误";
         return;
     }
 
@@ -242,7 +242,7 @@ void ScanControlHuiChuan::processFrame92(const QByteArray& frame)
     uint8_t cmd_sum = buf[4];
 
     if (len != 0x08) {
-        qDebug() << "[0x92] LEN error: 期望 0x08, 实际:" << len;
+        qCDebug(lcBus) << "[0x92] 数据长度错误: 期望 0x08, 实际:" << len;
         return;
     }
 
@@ -250,7 +250,7 @@ void ScanControlHuiChuan::processFrame92(const QByteArray& frame)
     // ===== CMD 校验 =====
     uint8_t calc_cmd_sum = buf[0] + buf[1] + buf[2] + buf[3];
     if (cmd_sum != calc_cmd_sum) {
-        qDebug() << "[0x92] CMD checksum error";
+        qCDebug(lcBus) << "[0x92] 命令校验错误";
         return;
     }
 
@@ -264,7 +264,7 @@ void ScanControlHuiChuan::processFrame92(const QByteArray& frame)
     }
 
     if (data_sum != calc_data_sum) {
-        qDebug() << "[0x92] DATA checksum error";
+        qCDebug(lcBus) << "[0x92] 数据校验错误";
         return;
     }
 
@@ -283,17 +283,15 @@ void ScanControlHuiChuan::processFrame92(const QByteArray& frame)
     //             << "angle(deg):" << angleDeg
     //             <<"mm"<<angleDeg/60.0;
 
-    qDebug() << "[0x92] 解析成功 ID:" << id
+    qCDebug(lcPos) << "[0x92] 解析成功 ID:" << id
              << "motorAngle(raw):" << motorAngle
              << "angle(deg):" << angleDeg
              << "mm:" << angleDeg / 60.0;
 
     // ===== 信号 =====
     if(id==2){
-        qDebug() << "[0x92] emit positionChangex(x):" << angleDeg / 60.0;
         emit positionChangex(angleDeg/60.0);     // 实际工程角度（°）
     }else {
-        qDebug() << "[0x92] emit positionChangey(y):" << angleDeg / 60.0;
         emit positionChangey(angleDeg/60.0);
     }
 
@@ -468,7 +466,7 @@ ScanControlHuiChuan::ScanControlHuiChuan(QObject *parent) :
 
 ScanControlHuiChuan::~ScanControlHuiChuan()
 {
-
+    qCInfo(lcBus) << "汇川控制器析构, 未发出指令" << txQueue.size() << "条";
     delete tcpSocket;
     if (settings) {
 
@@ -635,10 +633,7 @@ void ScanControlHuiChuan::on_setOriginBtn_clicked()
 
 void ScanControlHuiChuan::on_xAddBtn_pressed()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("X+ 按下")) return;
     updateCurPos = false;
     axisJog = AxisJog::XJogAddPressed;
 
@@ -646,10 +641,7 @@ void ScanControlHuiChuan::on_xAddBtn_pressed()
 
 void ScanControlHuiChuan::on_xAddBtn_released()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("X+ 松开")) return;
     updateCurPos = false;
     axisJog = AxisJog::XJogAddReleased;
 
@@ -657,140 +649,98 @@ void ScanControlHuiChuan::on_xAddBtn_released()
 
 void ScanControlHuiChuan::on_xSubBtn_pressed()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("X- 按下")) return;
     updateCurPos = false;
     axisJog = AxisJog::XJogSubPressed;
 }
 
 void ScanControlHuiChuan::on_xSubBtn_released()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("X- 松开")) return;
     updateCurPos = false;
     axisJog = AxisJog::XJogSubReleased;
 }
 
 void ScanControlHuiChuan::on_yAddBtn_pressed()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("Y+ 按下")) return;
     updateCurPos = false;
     axisJog = AxisJog::YJogAddPressed;
 }
 
 void ScanControlHuiChuan::on_yAddBtn_released()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("Y+ 松开")) return;
     updateCurPos = false;
     axisJog = AxisJog::YJogAddReleased;
 }
 
 void ScanControlHuiChuan::on_ySubBtn_pressed()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("Y- 按下")) return;
     updateCurPos = false;
     axisJog = AxisJog::YJogSubPressed;
 }
 
 void ScanControlHuiChuan::on_ySubBtn_released()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("Y- 松开")) return;
     updateCurPos = false;
     axisJog = AxisJog::YJogSubReleased;
 }
 
 void ScanControlHuiChuan::on_zAddBtn_pressed()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("Z+ 按下")) return;
     updateCurPos = false;
     axisJog = AxisJog::ZJogAddPressed;
 }
 
 void ScanControlHuiChuan::on_zAddBtn_released()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("Z+ 松开")) return;
     updateCurPos = false;
     axisJog = AxisJog::ZJogAddReleased;
 }
 
 void ScanControlHuiChuan::on_zSubBtn_pressed()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("Z- 按下")) return;
     updateCurPos = false;
     axisJog = AxisJog::ZJogSubPressed;
 }
 
 void ScanControlHuiChuan::on_zSubBtn_released()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("Z- 松开")) return;
     updateCurPos = false;
     axisJog = AxisJog::ZJogSubReleased;
 }
 
 void ScanControlHuiChuan::on_rAddBtn_pressed()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("R+ 按下")) return;
     updateCurPos = false;
     axisJog = AxisJog::RJogAddPressed;
 }
 
 void ScanControlHuiChuan::on_rAddBtn_released()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("R+ 松开")) return;
     updateCurPos = false;
     axisJog = AxisJog::RJogAddReleased;
 }
 
 void ScanControlHuiChuan::on_rSubBtn_pressed()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("R- 按下")) return;
     updateCurPos = false;
     axisJog = AxisJog::RJogSubPressed;
 }
 
 void ScanControlHuiChuan::on_rSubBtn_released()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("R- 松开")) return;
     updateCurPos = false;
     axisJog = AxisJog::RJogSubReleased;
 }
@@ -798,7 +748,24 @@ void ScanControlHuiChuan::on_rSubBtn_released()
 
 void ScanControlHuiChuan::on_setLimitBtn_clicked()
 {
+    qCWarning(lcUi) << "设置机械极限位: 汇川控制器未实现，忽略";
+}
 
+
+bool ScanControlHuiChuan::jogAllowed(const char* action)
+{
+    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState) {
+        qCWarning(lcUi) << "点动" << action << "被忽略: 网关未连接";
+        return false;
+    }
+    if ((tasks.count() != 0) || isEndScan || isAxisStop || isJogDone || isRunTarget) {
+        qCWarning(lcUi) << "点动" << action << "被忽略: 控制器忙"
+                        << "任务" << tasks.count() << "结束中" << isEndScan << "停止中" << isAxisStop
+                        << "点动完成" << isJogDone << "执行目标点" << isRunTarget;
+        return false;
+    }
+    qCInfo(lcUi) << "点动" << action;
+    return true;
 }
 
 
@@ -808,6 +775,8 @@ void ScanControlHuiChuan::on_setLimitBtn_clicked()
 void ScanControlHuiChuan::init()
 {
     settings = new QSettings("./scan_setting.ini", QSettings::IniFormat);
+    qCInfo(lcBus) << "汇川控制器初始化: 调度节拍" << kTickMs << "ms, 帧间隔" << kBusGapMs
+                  << "ms, 位置回包超时" << kPosReplyTimeout << "ms, 队列上限" << kMaxTxQueue;
 
     timer = new QTimer(this);
     // 调度节拍 10ms：每个节拍最多发一帧。
@@ -1064,7 +1033,10 @@ void ScanControlHuiChuan::perfromJogTasks()
     case YJogAddReleased:
     case YJogSubReleased:   sendCommandTcp(motorIdY, 0,           0xA2); break;
 
-    default:                /* NotAxisJog 或 Z/R 轴，暂不支持 */            break;
+    case NotAxisJog:        break;
+    default:
+        qCWarning(lcUi) << "点动: Z/R 轴暂不支持, 状态" << axisJog;
+        break;
     }
 
 
@@ -1166,11 +1138,11 @@ void ScanControlHuiChuan::on_start(){
 
 }
 void ScanControlHuiChuan::on_stop(){
-
-
+    qCDebug(lcBus) << "暂停: 汇川控制器 on_stop 不发指令，电机继续执行已下发的目标";
 }
 void ScanControlHuiChuan::on_end(){
 
+    qCInfo(lcBus) << "结束: X/Y 轴发送 0x81 停止";
     // 停止命令优先：丢掉还没发出的运动指令，两条 0x81 插到队首，
     // 等当前在途的位置回包结束后立即发出，不与回包撞帧。
     if (!txQueue.isEmpty()) {
@@ -1192,20 +1164,26 @@ void ScanControlHuiChuan::on_end(){
 
 }
 void ScanControlHuiChuan::on_backZero(){
-
-
+    qCDebug(lcBus) << "回原: 由主界面下发 0xA4 位置指令，控制器 on_backZero 不处理";
 }
 
 
 void ScanControlHuiChuan::on_alarmReset(){
 
-    QByteArray frame;
-    frame.append(static_cast<char>(0x3E));      // 帧头
-    frame.append(static_cast<char>(0x9B));      // 命令
-    frame.append(static_cast<char>(motorId));   // 电机ID
-    frame.append(static_cast<char>(0x00));      // 数据长度
-    quint8 cmdSum = calculateChecksum(frame);   // 校验和
-    frame.append(static_cast<char>(cmdSum));
-
-    enqueueFrame(frame);
+    auto buildClearError = [this](quint8 id) {
+        QByteArray frame;
+        frame.append(static_cast<char>(0x3E));      // 帧头
+        frame.append(static_cast<char>(0x9B));      // 命令：清除电机错误标志
+        frame.append(static_cast<char>(id));        // 电机ID
+        frame.append(static_cast<char>(0x00));      // 数据长度
+        frame.append(static_cast<char>(calculateChecksum(frame)));
+        return frame;
+    };
+    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState) {
+        qCWarning(lcUi) << "点击 复位(清除报警) 被忽略: 网关未连接";
+        return;
+    }
+    qCInfo(lcUi) << "点击 复位(清除报警): X/Y 轴发送 0x9B";
+    enqueueFrame(buildClearError(0x02));
+    enqueueFrame(buildClearError(0x01));
 }

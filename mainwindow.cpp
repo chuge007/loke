@@ -31,8 +31,8 @@ MainWindow::MainWindow(QWidget *parent) :
 
 MainWindow::~MainWindow()
 {
-
-
+    qCInfo(lcUi) << "主窗口关闭, 扫查状态: 停止" << stopScan << "当前点" << currentPathIndex << "/" << path.size()
+                 << "位置" << position.x << position.y;
     delete ui;
 }
 
@@ -98,6 +98,11 @@ void MainWindow::saveseting(){
 
     settings->endGroup();
     settings->sync();  // 强制写入磁盘
+    if (settings->status() != QSettings::NoError) {
+        qCWarning(lcUi) << "参数保存失败:" << settings->fileName() << "status" << settings->status();
+    } else {
+        qCDebug(lcUi) << "参数已保存:" << settings->fileName();
+    }
 }
 
 void MainWindow::initWidget()
@@ -183,6 +188,15 @@ void MainWindow::initWidget()
     scanCtrl->setModbusPort(ui->port_Edit->text().toInt());
 
     scanCtrl->speed=ui->jog_velocity->text().toFloat()*6000;
+
+    qCInfo(lcUi) << "加载配置" << settings->fileName()
+                 << "网关" << ui->IP_Edit->text() << ui->port_Edit->text()
+                 << "扫查轴" << ui->comboBox_2->currentText()
+                 << "扫查轴长" << ui->x_lenght->text() << "步进轴长" << ui->y_lenght->text()
+                 << "步进" << ui->y_step->text()
+                 << "扫查速度" << ui->sweepSpeed->text() << "步进速度" << ui->stepSpeed->text()
+                 << "点动速度" << ui->jog_velocity->text() << "回原速度" << ui->backOrigin_velocity->text()
+                 << "X反向" << ui->invertXCheck->isChecked() << "Y反向" << ui->invertYCheck->isChecked();
 }
 
 
@@ -194,6 +208,7 @@ void MainWindow::connectFun()
 
     connect(scanCtrl, &ScanControlAbstract::tcpStateChange,
             this, [this](bool connected) {
+        qCInfo(lcUi) << "连接状态变化:" << (connected ? "已连接" : "未连接");
         ui->connectBtn->setText(connected ? "discon" : "conect");
         if (!connected) {
             // 断线后旧位置已不可信，显示占位符并要求重新收到回包后才参与到位判定
@@ -224,6 +239,7 @@ void MainWindow::connectFun()
 
     connect(ui->backZeroScanBtn, &QPushButton::clicked, this, &MainWindow::on_backZero);
     connect(ui->endScanBtn, &QPushButton::clicked, this, &MainWindow::scanEnd);
+    connect(ui->resetScanBtn, &QPushButton::clicked, scanCtrl, &ScanControlAbstract::on_alarmReset);
 
     connect(ui->xAddBtn, &QPushButton::pressed, scanCtrl, &ScanControlAbstract::on_xAddBtn_pressed);
     connect(ui->xAddBtn, &QPushButton::released, scanCtrl, &ScanControlAbstract::on_xAddBtn_released);
@@ -308,6 +324,7 @@ void MainWindow::updatePosition(float pos)
     float v = -pos;
     if (ui->invertXCheck->isChecked()) v = -v;
     position.x = v;
+    if (!firstPosReceived) qCInfo(lcPos) << "收到首个位置回包: X =" << v << "mm";
     firstPosReceived = true;
     ui->xCurPos->setText(QString::number(v, 'f', 2));
     if (freeMotionActive) checkFreeMotionX();
@@ -319,6 +336,7 @@ void MainWindow::updatePosition2(float pos)
     float v = pos;
     if (ui->invertYCheck->isChecked()) v = -v;
     position.y = v;
+    if (!firstPosReceived) qCInfo(lcPos) << "收到首个位置回包: Y =" << v << "mm";
     firstPosReceived = true;
     ui->yCurPos->setText(QString::number(v, 'f', 2));
     if (freeMotionActive) checkFreeMotionY();
@@ -333,6 +351,7 @@ void MainWindow::updatePosition2(float pos)
 
 void MainWindow::backOrigin_velocity(){
 
+    qCInfo(lcUi) << "回原速度设为" << ui->backOrigin_velocity->text() << "mm/s";
     saveseting();
 }
 
@@ -445,6 +464,9 @@ void MainWindow::startFreeMotion()
 
     if (!freeMotionActive) return;
 
+    qCInfo(lcScan) << "自由运动目标: X" << (freeMotionAxisXEnabled ? QString::number(freeMotionTargetX) : QString("不动"))
+                   << "Y" << (freeMotionAxisYEnabled ? QString::number(freeMotionTargetY) : QString("不动"))
+                   << "速度X" << axisCommandSpeed(true) / 6000.0 << "Y" << axisCommandSpeed(false) / 6000.0 << "mm/s";
     if (freeMotionAxisXEnabled) {
         sendXAxisUiTarget(freeMotionTargetX, axisCommandSpeed(true));
     }
@@ -553,15 +575,21 @@ void MainWindow::setBtn(){
     ylenght=ui->y_lenght->text().toFloat();
     step=ui->y_step->text().toFloat();
 
-
+    qCInfo(lcUi) << "点击 保存参数: 扫查轴长" << xlenght << "步进轴长" << ylenght << "步进" << step
+                 << "区域" << ui->regin->currentText();
     saveseting();
 
 }
 
 void MainWindow::on_connectBtn_clicked(){
 
+    qCInfo(lcUi) << "点击 连接/断开, 界面地址" << ui->IP_Edit->text() << ui->port_Edit->text();
+    bool portOk = false;
+    const int port = ui->port_Edit->text().toInt(&portOk);
+    if (!portOk || port <= 0 || port > 65535)
+        qCWarning(lcUi) << "端口无效:" << ui->port_Edit->text();
     scanCtrl->setModbusTcpIP(ui->IP_Edit->text());
-    scanCtrl->setModbusPort(ui->port_Edit->text().toInt());
+    scanCtrl->setModbusPort(port);
 
 }
 void MainWindow::setOrigin(){
@@ -642,7 +670,7 @@ void MainWindow::sendNextPoint()
             Point2D originPt;
             originPt.x = 0;
             originPt.y = 0;
-            startArriveCheck(originPt);
+            startArriveCheck(originPt, true, true);  // 回原点，检测两轴
             return;
         }
 
@@ -710,20 +738,25 @@ void MainWindow::sendNextPoint()
     };
 
     if (xMotorChanged && yMotorChanged) {
-        // 两轴都要动：X 立即发，Y 隔 50ms 防粘帧（保留原有节拍）
+        // 两轴都要动：X 立即发，Y 隔 50ms 防粘帧，再延迟启动到位检测
         sendX();
         QTimer::singleShot(50, this, sendY);
+        // 在Y轴命令发送后再启动检测（100ms = 50ms发Y + 50ms余量）
+        QTimer::singleShot(100, this, [this, p]() {
+            startArriveCheck(p, true, true);  // 两轴都要检测
+        });
     } else if (xMotorChanged) {
         // 只动 X：直接发，没有可粘帧的对象
         sendX();
+        startArriveCheck(p, true, false);  // 只检测X轴
     } else if (yMotorChanged) {
         // 只动 Y：直接发，省掉以前那条没用的 X 废命令
         sendY();
+        startArriveCheck(p, false, true);  // 只检测Y轴
+    } else {
+        // 都没变：电机已就位，直接进到位检测，会立刻命中
+        startArriveCheck(p, false, false);  // 都不检测（立即命中）
     }
-
-    // 都没变：电机已就位，直接进到位检测，会立刻命中
-
-    startArriveCheck(p);
 }
 
 
@@ -734,7 +767,7 @@ void MainWindow::sendNextPoint()
 // arriveTimer 只作为"超时兜底"：
 //   - 3s 内连一次位置回包都没收到 → TCP 异常，停扫查；
 //   - 单点 15s 还没到位 → 强制推进，避免永久卡死。
-void MainWindow::startArriveCheck(Point2D target)
+void MainWindow::startArriveCheck(Point2D target, bool checkX, bool checkY)
 {
     if(arriveTimer){
         arriveTimer->stop();
@@ -742,11 +775,14 @@ void MainWindow::startArriveCheck(Point2D target)
         arriveTimer = nullptr;
     }
     if(stopScan){
+        qCDebug(lcScan) << "到位检测未启动: 扫查已停止";
         arriveActive = false;
         return;
     }
 
     arriveTarget = target;
+    arriveCheckX = checkX;  // 保存X轴检测标志
+    arriveCheckY = checkY;  // 保存Y轴检测标志
     arriveActive = true;
     arriveResendCount = 0;
     arriveLastDist = -1.0f;
@@ -773,20 +809,30 @@ void MainWindow::startArriveCheck(Point2D target)
                 enableManualControls();
             }
             return;
-        }
-
-        // 当前距离：arriveTarget 保持逻辑扫查/步进坐标，position 保持 UI X/Y 坐标，
-        // 按当前扫查轴做一次映射后再比较，避免把物理坐标和逻辑坐标混用。
-        float dist;
+        }        // 当前距离：只检测需要运动的轴，避免非运动轴漂移影响判定
+        float dist = 0.0f;
         if (ui->comboBox_2->currentIndex() == 0) {
-            float dx = arriveTarget.x - position.x;
-            float dy = arriveTarget.y - position.y;
-            dist = std::sqrt(dx*dx + dy*dy);
+            // 扫查轴是X，步进轴是Y
+            if (arriveCheckX) {
+                float dx = arriveTarget.x - position.x;
+                dist += dx * dx;
+            }
+            if (arriveCheckY) {
+                float dy = arriveTarget.y - position.y;
+                dist += dy * dy;
+            }
         } else {
-            float dx = arriveTarget.y - position.x;
-            float dy = arriveTarget.x - position.y;
-            dist = std::sqrt(dx*dx + dy*dy);
+            // 扫查轴是Y，步进轴是X
+            if (arriveCheckX) {
+                float dx = arriveTarget.y - position.x;
+                dist += dx * dx;
+            }
+            if (arriveCheckY) {
+                float dy = arriveTarget.x - position.y;
+                dist += dy * dy;
+            }
         }
+        dist = std::sqrt(dist);
 
         // 距离明显在缩短(>0.2mm) 视为正在运动，重置 stall 计时
         if (arriveLastDist < 0 || arriveLastDist - dist > 0.2f) {
@@ -842,24 +888,49 @@ void MainWindow::startArriveCheck(Point2D target)
 
 // 事件驱动的到位判定：每次拿到真实位置回包就比一次距离，命中立刻推进。
 // 这样跟通讯节奏完全对齐，不会出现"等了几个 50ms 还没到位回包"的空等。
+// 关键修复：只检测实际运动的轴，避免非运动轴的微小漂移导致误判。
 void MainWindow::checkArrival()
 {
     if (!arriveActive || stopScan || !firstPosReceived) return;
 
-    float dist;
+    // 只检测需要运动的轴，避免非运动轴漂移影响判定
+    float dist = 0.0f;
+    bool xArrived = true;
+    bool yArrived = true;
+    
     if (ui->comboBox_2->currentIndex() == 0) {
-        float dx = arriveTarget.x - position.x;
-        float dy = arriveTarget.y - position.y;
-        dist = std::sqrt(dx*dx + dy*dy);
+        // 扫查轴是X，步进轴是Y
+        if (arriveCheckX) {
+            float dx = arriveTarget.x - position.x;
+            xArrived = (std::fabs(dx) < 0.5f);
+            dist += dx * dx;
+        }
+        if (arriveCheckY) {
+            float dy = arriveTarget.y - position.y;
+            yArrived = (std::fabs(dy) < 0.5f);
+            dist += dy * dy;
+        }
     } else {
-        float dx = arriveTarget.y - position.x;
-        float dy = arriveTarget.x - position.y;
-        dist = std::sqrt(dx*dx + dy*dy);
+        // 扫查轴是Y，步进轴是X
+        if (arriveCheckX) {
+            float dx = arriveTarget.y - position.x;
+            xArrived = (std::fabs(dx) < 0.5f);
+            dist += dx * dx;
+        }
+        if (arriveCheckY) {
+            float dy = arriveTarget.x - position.y;
+            yArrived = (std::fabs(dy) < 0.5f);
+            dist += dy * dy;
+        }
     }
-
-    if (dist < 0.5f) {
+    
+    dist = std::sqrt(dist);
+    
+    // 需要检测的轴都到位才算到位
+    if (xArrived && yArrived) {
         qCInfo(lcScan) << "点" << currentPathIndex + 1 << "到位, 误差" << dist << "mm, 耗时"
-                       << arriveElapsed.elapsed() << "ms";
+                       << arriveElapsed.elapsed() << "ms"
+                       << "检测轴 X:" << arriveCheckX << "Y:" << arriveCheckY;
         arriveActive = false;
         if (arriveTimer) {
             arriveTimer->stop();
@@ -877,6 +948,7 @@ void MainWindow::checkArrival()
 
 void MainWindow::setStart(){
 
+    qCInfo(lcUi) << "点击 开始, 自由运动" << ui->freeMotionCheck->isChecked();
     ui->xAddBtn->setEnabled(false);
 
     ui->xSubBtn->setEnabled(false);
@@ -1119,8 +1191,8 @@ void MainWindow::regin(){
 
     settings->endGroup();
 
-
-
+    qCInfo(lcUi) << "切换区域" << ui->regin->currentIndex() << ui->regin->currentText()
+                 << "存在保存的区域参数" << groups.contains(activePiece);
 }
 //    auto isArrivedByPos = [&](const Point2D& target)->bool {
 

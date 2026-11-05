@@ -123,5 +123,7 @@ int main(int argc, char *argv[])
     MainWindow w;
     w.show();
 
-    return a.exec();
+    const int exitCode = a.exec();
+    qInfo() << "==================== Locke 退出, 返回码" << exitCode << "====================";
+    return exitCode;
 }

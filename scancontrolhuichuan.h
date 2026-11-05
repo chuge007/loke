@@ -79,6 +79,7 @@ private:
 
     void updataCurrentPos();        //更新当前点位置
     void perfromJogTasks();         //点动
+    bool jogAllowed(const char* action);   //点动前置检查，被拒时写日志说明原因
 
     // 所有发往网关的帧统一走这里排队，由 performTasks 串行发出，
     // 避免控制指令和 0x92 位置查询在半双工总线上撞帧导致位置回包丢失。

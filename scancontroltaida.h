@@ -73,6 +73,8 @@ private:
 
     void updataCurrentPos();        //更新当前点位置
     void perfromJogTasks();         //点动
+    bool jogAllowed(const char* action);   //点动前置检查，被拒时写日志说明原因
+    bool warnedNotConnected = false;       //未连接告警只记一次，避免每个节拍刷屏
 
 
 

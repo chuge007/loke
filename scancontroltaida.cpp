@@ -11,6 +11,8 @@
 #include <QTcpSocket>
 #include <QNetworkProxy>
 
+#include "locke_log.h"
+
 
 // 辅助函数：计算字节序列的校验和（简单求和）
 quint8 ScanControlTaiDa::calculateChecksum(const QByteArray &data) {
@@ -22,8 +24,8 @@ quint8 ScanControlTaiDa::calculateChecksum(const QByteArray &data) {
 }
 
 void ScanControlTaiDa::runPosintion(int64_t angleControl, uint32_t maxSpeed){
-
-
+    qCWarning(lcBus) << "位置控制: 台达控制器未实现，指令被忽略, 目标" << angleControl / 6000.0
+                     << "mm 限速" << maxSpeed / 6000.0 << "mm/s";
 }
 
 
@@ -32,7 +34,7 @@ void ScanControlTaiDa::processFrame(const QByteArray& frame)
     // 最小长度校验
     // CMD(5) + DATA(8) = 13 byte
     if (frame.size() < 13) {
-        qDebug() << "[FRAME] length error:" << frame.size();
+        qCDebug(lcBus) << "[0x9C] 帧长错误:" << frame.size() << frame.toHex(' ').toUpper();
         return;
     }
 
@@ -40,7 +42,7 @@ void ScanControlTaiDa::processFrame(const QByteArray& frame)
 
     // ========== 帧头校验 ==========
     if (buf[0] != 0x3E || buf[1] != 0x9C) {
-        qDebug() << "[FRAME] header error";
+        qCDebug(lcBus) << "[0x9C] 帧头错误:" << frame.toHex(' ').toUpper();
         return;
     }
 
@@ -51,7 +53,7 @@ void ScanControlTaiDa::processFrame(const QByteArray& frame)
     // CMD 校验
     uint8_t calc_cmd_sum = buf[0] + buf[1] + buf[2] + buf[3];
     if (cmd_sum != calc_cmd_sum) {
-        qDebug() << "[FRAME] CMD checksum error";
+        qCDebug(lcBus) << "[0x9C] 命令校验错误:" << frame.toHex(' ').toUpper();
         return;
     }
 
@@ -66,7 +68,7 @@ void ScanControlTaiDa::processFrame(const QByteArray& frame)
     }
 
     if (data_sum != calc_data_sum) {
-        qDebug() << "[FRAME] DATA checksum error";
+        qCDebug(lcBus) << "[0x9C] 数据校验错误:" << frame.toHex(' ').toUpper();
         return;
     }
 
@@ -83,7 +85,7 @@ void ScanControlTaiDa::processFrame(const QByteArray& frame)
         (uint16_t)(buf[dataIndex + 6] << 8 | buf[dataIndex + 5]);
 
     // ========== 输出 ==========
-    qDebug() << "ID:" << id
+    qCDebug(lcPos) << "[0x9C] ID:" << id
              << "Temp:" << temperature
              << "IQ/Power:" << iq_or_power
              << "Speed:" << speed
@@ -139,9 +141,24 @@ void ScanControlTaiDa::readAxisEndState()
 
 void ScanControlTaiDa::on_connectBtn_clicked()
 {
+    qCInfo(lcBus) << "台达控制器连接网关" << PlcIP << PlcPort;
     tcpSocket = new QTcpSocket(this);
     tcpSocket->setProxy(QNetworkProxy::NoProxy);  // ✅ 禁用代理
     tcpSocket->connectToHost(PlcIP, PlcPort);
+
+    connect(tcpSocket, &QTcpSocket::connected, this, [this]{
+        warnedNotConnected = false;
+        qCInfo(lcBus) << "网关已连接" << PlcIP << PlcPort;
+    });
+    connect(tcpSocket, &QTcpSocket::disconnected, this, [this]{
+        qCWarning(lcBus) << "网关已断开" << PlcIP << PlcPort;
+    });
+    connect(tcpSocket,
+            QOverload<QAbstractSocket::SocketError>::of(&QTcpSocket::error),
+            this,
+            [this](QAbstractSocket::SocketError err){
+        qCWarning(lcBus) << "网关 socket 错误:" << err << tcpSocket->errorString();
+    });
 
     connect(tcpSocket, &QTcpSocket::readyRead, this, [this]() {
         rxBuffer.append(tcpSocket->readAll());
@@ -153,7 +170,7 @@ void ScanControlTaiDa::on_connectBtn_clicked()
             QByteArray frame = rxBuffer.left(idx);
             rxBuffer.remove(0, idx + 2);
 
-            qDebug() << "[TCP FRAME]" << frame;
+            qCDebug(lcBus) << "RX" << frame.toHex(' ').toUpper();
             processFrame(frame);
         }
     });
@@ -163,7 +180,7 @@ void ScanControlTaiDa::on_connectBtn_clicked()
 void ScanControlTaiDa::on_setOriginBtn_clicked()
 {
     if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState) {
-        qDebug() << QString::fromLocal8Bit("TCP 未连接");
+        qCWarning(lcBus) << "设置零点失败: 网关未连接";
         return;
     }
 
@@ -176,21 +193,21 @@ void ScanControlTaiDa::on_setOriginBtn_clicked()
     quint8 cmdSum = calculateChecksum(frame);   // 校验和
     frame.append(static_cast<char>(cmdSum));
 
-    tcpSocket->write(frame);
+    const qint64 written = tcpSocket->write(frame);
     tcpSocket->flush();
 
-    qDebug() << QString::fromLocal8Bit("TCP 发送速度控制命令: ID =") << 0x01
-             << QString::fromLocal8Bit(" 帧数据: ") << frame.toHex(' ').toUpper();
+    if (written != frame.size()) {
+        qCWarning(lcBus) << "设置零点: 写 socket 失败" << tcpSocket->errorString();
+        return;
+    }
+    qCInfo(lcBus) << "TX 1号电机 当前位置写为零点(0x19):" << frame.toHex(' ').toUpper();
 }
 
 
 
 void ScanControlTaiDa::on_xAddBtn_pressed()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("X+ 按下")) return;
     updateCurPos = false;
     axisJog = AxisJog::XJogAddPressed;
 
@@ -198,10 +215,7 @@ void ScanControlTaiDa::on_xAddBtn_pressed()
 
 void ScanControlTaiDa::on_xAddBtn_released()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("X+ 松开")) return;
     updateCurPos = false;
     axisJog = AxisJog::XJogAddReleased;
 
@@ -209,140 +223,98 @@ void ScanControlTaiDa::on_xAddBtn_released()
 
 void ScanControlTaiDa::on_xSubBtn_pressed()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("X- 按下")) return;
     updateCurPos = false;
     axisJog = AxisJog::XJogSubPressed;
 }
 
 void ScanControlTaiDa::on_xSubBtn_released()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("X- 松开")) return;
     updateCurPos = false;
     axisJog = AxisJog::XJogSubReleased;
 }
 
 void ScanControlTaiDa::on_yAddBtn_pressed()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("Y+ 按下")) return;
     updateCurPos = false;
     axisJog = AxisJog::YJogAddPressed;
 }
 
 void ScanControlTaiDa::on_yAddBtn_released()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("Y+ 松开")) return;
     updateCurPos = false;
     axisJog = AxisJog::YJogAddReleased;
 }
 
 void ScanControlTaiDa::on_ySubBtn_pressed()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("Y- 按下")) return;
     updateCurPos = false;
     axisJog = AxisJog::YJogSubPressed;
 }
 
 void ScanControlTaiDa::on_ySubBtn_released()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("Y- 松开")) return;
     updateCurPos = false;
     axisJog = AxisJog::YJogSubReleased;
 }
 
 void ScanControlTaiDa::on_zAddBtn_pressed()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("Z+ 按下")) return;
     updateCurPos = false;
     axisJog = AxisJog::ZJogAddPressed;
 }
 
 void ScanControlTaiDa::on_zAddBtn_released()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("Z+ 松开")) return;
     updateCurPos = false;
     axisJog = AxisJog::ZJogAddReleased;
 }
 
 void ScanControlTaiDa::on_zSubBtn_pressed()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("Z- 按下")) return;
     updateCurPos = false;
     axisJog = AxisJog::ZJogSubPressed;
 }
 
 void ScanControlTaiDa::on_zSubBtn_released()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("Z- 松开")) return;
     updateCurPos = false;
     axisJog = AxisJog::ZJogSubReleased;
 }
 
 void ScanControlTaiDa::on_rAddBtn_pressed()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("R+ 按下")) return;
     updateCurPos = false;
     axisJog = AxisJog::RJogAddPressed;
 }
 
 void ScanControlTaiDa::on_rAddBtn_released()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("R+ 松开")) return;
     updateCurPos = false;
     axisJog = AxisJog::RJogAddReleased;
 }
 
 void ScanControlTaiDa::on_rSubBtn_pressed()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("R- 按下")) return;
     updateCurPos = false;
     axisJog = AxisJog::RJogSubPressed;
 }
 
 void ScanControlTaiDa::on_rSubBtn_released()
 {
-    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    if((tasks.count() != 0)  || isEndScan || isAxisStop || isJogDone || isRunTarget) return;
+    if (!jogAllowed("R- 松开")) return;
     updateCurPos = false;
     axisJog = AxisJog::RJogSubReleased;
 }
@@ -350,7 +322,24 @@ void ScanControlTaiDa::on_rSubBtn_released()
 
 void ScanControlTaiDa::on_setLimitBtn_clicked()
 {
+    qCWarning(lcUi) << "设置机械极限位: 台达控制器未实现，忽略";
+}
 
+
+bool ScanControlTaiDa::jogAllowed(const char* action)
+{
+    if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState) {
+        qCWarning(lcUi) << "点动" << action << "被忽略: 网关未连接";
+        return false;
+    }
+    if ((tasks.count() != 0) || isEndScan || isAxisStop || isJogDone || isRunTarget) {
+        qCWarning(lcUi) << "点动" << action << "被忽略: 控制器忙"
+                        << "任务" << tasks.count() << "结束中" << isEndScan << "停止中" << isAxisStop
+                        << "点动完成" << isJogDone << "执行目标点" << isRunTarget;
+        return false;
+    }
+    qCInfo(lcUi) << "点动" << action;
+    return true;
 }
 
 
@@ -359,7 +348,7 @@ void ScanControlTaiDa::on_setLimitBtn_clicked()
 
 void ScanControlTaiDa::init()
 {
-
+    qCInfo(lcBus) << "台达控制器初始化";
     connectFun();
 
 }
@@ -380,7 +369,10 @@ void ScanControlTaiDa::updataCurrentPos()
 {
 
     if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState) {
-        qDebug() << QString::fromLocal8Bit("TCP 未连接");
+        if (!warnedNotConnected) {
+            warnedNotConnected = true;
+            qCWarning(lcBus) << "位置查询暂停: 网关未连接";
+        }
         return;
     }
 
@@ -393,11 +385,14 @@ void ScanControlTaiDa::updataCurrentPos()
     quint8 cmdSum = calculateChecksum(frame);   // 校验和
     frame.append(static_cast<char>(cmdSum));
 
-    tcpSocket->write(frame);
+    const qint64 written = tcpSocket->write(frame);
     tcpSocket->flush();
 
-    qDebug() << QString::fromLocal8Bit("TCP 发送速度控制命令: ID =") << 0x01
-             << QString::fromLocal8Bit(" 帧数据: ") << frame.toHex(' ').toUpper();
+    if (written != frame.size()) {
+        qCWarning(lcBus) << "位置查询: 写 socket 失败" << tcpSocket->errorString();
+        return;
+    }
+    qCDebug(lcBus) << "TX 1号电机 读编码器(0x9C):" << frame.toHex(' ').toUpper();
 
 }
 
@@ -433,7 +428,7 @@ void ScanControlTaiDa::perfromJogTasks()
 void ScanControlTaiDa::sendCommandTcp(quint8 motorId, int32_t speedValue,int cmd) {
 
     if (!tcpSocket || tcpSocket->state() != QAbstractSocket::ConnectedState) {
-        qDebug() << QString::fromLocal8Bit("TCP 未连接");
+        qCWarning(lcBus) << "速度指令未发送: 网关未连接, 电机" << motorId << "速度" << speedValue;
         return;
     }
 
@@ -458,34 +453,33 @@ void ScanControlTaiDa::sendCommandTcp(quint8 motorId, int32_t speedValue,int cmd
 
     // 合并帧并发送
     frame.append(dataFrame);
-    tcpSocket->write(frame);
+    const qint64 written = tcpSocket->write(frame);
     tcpSocket->flush();
 
-    qDebug() << QString::fromLocal8Bit("TCP 发送速度控制命令: ID =") << motorId
-             << QString::fromLocal8Bit(" 速度值 =") << speedValue
-             << QString::fromLocal8Bit(" 帧数据: ") << frame.toHex(' ').toUpper();
+    if (written != frame.size()) {
+        qCWarning(lcBus) << "速度指令: 写 socket 失败, 电机" << motorId << tcpSocket->errorString();
+        return;
+    }
+    qCInfo(lcBus) << "TX 电机" << motorId << "速度控制 cmd=0x" + QString::number(cmd, 16).toUpper()
+                  << "速度值" << speedValue;
+    qCDebug(lcBus) << "TX hex:" << frame.toHex(' ').toUpper();
 }
 
 
 void ScanControlTaiDa::on_start(){
-
-
+    qCDebug(lcBus) << "开始: 台达控制器 on_start 未实现";
 }
 void ScanControlTaiDa::on_stop(){
-
-
+    qCWarning(lcBus) << "暂停: 台达控制器 on_stop 未实现，电机不会停止";
 }
 void ScanControlTaiDa::on_end(){
-
-
+    qCWarning(lcBus) << "结束: 台达控制器 on_end 未实现，电机不会停止";
 }
 void ScanControlTaiDa::on_backZero(){
-
-
+    qCWarning(lcBus) << "回原: 台达控制器 on_backZero 未实现";
 }
 
 
 void ScanControlTaiDa::on_alarmReset(){
-
-
+    qCWarning(lcUi) << "点击 复位(清除报警): 台达控制器未实现清除报警指令，忽略";
 }
