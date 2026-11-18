@@ -81,6 +81,16 @@ private:
     void readAxisEndState();
     void releaseMotorsDirect(const char* reason, bool waitForSend = false);   //链路异常时绕开队列直接写 0x80
 
+    // 0x80(电机关闭)会让驱动器丢掉多圈计数，0x92 只剩本圈角度，
+    // 读数整体平移，之后 0xA4 的绝对目标就整体错位（表现为点“回原”不动、直接变 0）。
+    // 实测 0x95 写回多圈角度在该驱动器上不生效，改用软件侧偏移对齐：
+    //   软件坐标 = 驱动器读数 + posOffset，0x80 后拿到第一帧新读数重建 offset。
+    void rememberPositionBeforeOff(quint8 motorId);            //发 0x80 前记下软件坐标
+    void anchorPositionReference(quint8 axisId, double rawMm); //用新读数重建 offset
+    void savePositionMemory();
+    void loadPositionMemory();
+    void dropPendingMotorOff(quint8 motorId);       //发运动指令前丢掉该轴还没发出的 0x80
+
     void updataCurrentPos();        //更新当前点位置
     void perfromJogTasks();         //点动
     bool jogAllowed(const char* action);   //点动前置检查，被拒时写日志说明原因
@@ -139,6 +149,19 @@ private:
     bool handlingSocketError = false;   //socket 错误处理中，防止嵌套错误递归
     bool motorOffX = true;          //X 轴处于 0x80 电机关闭状态（上电未知，先按关闭处理）
     bool motorOffY = true;          //Y 轴处于 0x80 电机关闭状态
+
+    // ---- 位置基准对齐：0x80 清多圈后读数整体平移，用 offset 把两套坐标接回去 ----
+    double posOffsetX = 0;          //软件坐标 = 驱动器读数 + posOffset
+    double posOffsetY = 0;
+    double savedSwX = 0;            //断使能那一刻的软件坐标，用于重建 offset
+    double savedSwY = 0;
+    bool   anchorPendingX = false;  //下一帧位置读数用于重建 offset
+    bool   anchorPendingY = false;
+    QElapsedTimer sinceMotorOff;    //0x80 写出时刻：更早的在途回包还是旧坐标，不能拿来对齐
+    double absMemX = 0;             //软件侧最后可信坐标(落盘，重启后据此对齐)
+    double absMemY = 0;
+    bool absMemValidX = false;
+    bool absMemValidY = false;
     QTimer *reconnectTimer = nullptr;   //意外断线后的重连定时器
     QTimer *connectTimeoutTimer = nullptr;  //单次连接超时；复用定时器，避免旧回调误伤新连接
     int reconnectAttempts = 0;          //连续自动重连次数

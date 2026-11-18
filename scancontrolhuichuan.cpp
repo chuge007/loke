@@ -41,6 +41,8 @@ constexpr int kActiveHoldMs       = 2500;
 constexpr int kCmdQuietMs         = 120;
 // 非运动轴的保底刷新间隔(心跳)，避免静止轴位置长时间不更新
 constexpr int kOtherAxisRefreshMs = 1000;
+// 0x80 写出后要等这么久才拿回包重建坐标偏移：更早的在途回包还是旧坐标
+constexpr int kAnchorGuardMs = 250;
 
 // 把发出的帧翻译成可读文字，日志里直接看出发了什么、给哪个轴、目标多少
 QString describeFrame(const QByteArray& f)
@@ -73,6 +75,13 @@ QString describeFrame(const QByteArray& f)
     case 0x76: text = "电机重启"; break;
     case 0x9B: text = "清除报警"; break;
     case 0x92: text = "读位置"; break;
+    case 0x80: text = "电机关闭(断使能)"; break;
+    case 0x88: text = "电机运行(恢复使能)"; break;
+    case 0x95:
+        if (f.size() >= 10)
+            text = QString("写多圈角度=%1mm(写RAM)").arg(qint32(le(5, 4)) / 6000.0, 0, 'f', 3);
+        else text = "写多圈角度(帧长异常)";
+        break;
     default:   text = QString("cmd=0x%1").arg(cmd, 2, 16, QChar('0')); break;
     }
     return QString("%1轴 %2").arg(axis, text);
@@ -403,6 +412,25 @@ void ScanControlHuiChuan::dispatchAxisMm(uint8_t axisId, double mm, bool strictA
         return;
     }
 
+    // 0x80 之后驱动器多圈计数被清，读数整体平移：用这一帧重建 offset，
+    // 界面从断使能前的位置接着走，不再跳到接近 0。
+    // 0x80 刚写出时可能还有一帧旧坐标的回包在路上，要等过了保护时间再对齐。
+    const bool anchorPending = (axisId == 2) ? anchorPendingX : anchorPendingY;
+    const bool anchorDue = anchorPending
+            && (!sinceMotorOff.isValid() || sinceMotorOff.elapsed() >= kAnchorGuardMs);
+    if (anchorDue)
+        anchorPositionReference(axisId, mm);
+
+    if ((axisId == 2) ? anchorPendingX : anchorPendingY) {
+        // 还没拿到 0x80 之后的有效读数：界面保持最后坐标，别拿另一套坐标系的数刷新
+        stat.sinceUpdate.restart();
+        qCDebug(lcPos) << axisName << "轴等待坐标对齐，忽略本帧" << mm << "mm";
+        return;
+    }
+
+    // 之后的过滤、显示、对外信号统一用软件坐标（驱动器读数 + offset）
+    const double mmSw = mm + ((axisId == 2) ? posOffsetX : posOffsetY);
+
     double& lastMm   = (axisId == 2) ? lastXmm : lastYmm;
     bool&   hasLast  = (axisId == 2) ? hasLastX : hasLastY;
     int&    rejCount = (axisId == 2) ? rejectCountX : rejectCountY;
@@ -410,31 +438,32 @@ void ScanControlHuiChuan::dispatchAxisMm(uint8_t axisId, double mm, bool strictA
     // 跳变过滤：strict 帧放宽到 500mm；滑窗兜底维持 100mm。
     // 连续被拒 kMaxJumpRejects 次视为真实变化，强制接受，避免该轴永久不刷新。
     const double jumpLimit = strictAxis ? 500.0 : 100.0;
-    if (hasLast && qAbs(mm - lastMm) > jumpLimit) {
+    if (hasLast && qAbs(mmSw - lastMm) > jumpLimit) {
         if (++rejCount < kMaxJumpRejects) {
             stat.rejects++;
-            qCWarning(lcPos) << axisName << "轴位置跳变被拒:" << mm << "上次:" << lastMm
+            qCWarning(lcPos) << axisName << "轴位置跳变被拒:" << mmSw << "上次:" << lastMm
                              << "第" << rejCount << "次" << "strict:" << strictAxis;
             return;
         }
         qCWarning(lcPos) << axisName << "轴连续" << rejCount << "次跳变，按真实位置接受:"
-                         << mm << "上次:" << lastMm;
+                         << mmSw << "上次:" << lastMm;
     }
     // "0 噪声"过滤：仅在不可信的滑窗匹配时启用
-    if (!strictAxis && hasLast && qAbs(lastMm) > 2.0 && qAbs(mm) < 0.001) {
+    if (!strictAxis && hasLast && qAbs(lastMm) > 2.0 && qAbs(mmSw) < 0.001) {
         stat.rejects++;
         qCDebug(lcPos) << axisName << "轴滑窗匹配到疑似假 0，丢弃, 上次:" << lastMm;
         return;
     }
 
-    qCDebug(lcPos) << axisName << "轴位置更新:" << mm << "mm"
-                   << "(strict:" << strictAxis << ", 上次:" << (hasLast ? lastMm : 0) << ")";
+    qCDebug(lcPos) << axisName << "轴位置更新:" << mmSw << "mm"
+                   << "(驱动器读数" << mm << ", strict:" << strictAxis
+                   << ", 上次:" << (hasLast ? lastMm : 0) << ")";
     rejCount = 0;
-    lastMm = mm;
+    lastMm = mmSw;
     hasLast = true;
     stat.sinceUpdate.restart();
-    if (axisId == 2) emit positionChangex(mm);
-    else             emit positionChangey(mm);
+    if (axisId == 2) emit positionChangex(mmSw);
+    else             emit positionChangey(mmSw);
 }
 
 
@@ -846,6 +875,13 @@ void ScanControlHuiChuan::on_setOriginBtn_clicked()
     // 先把缓存清掉，避免设零后位置显示因缓存延迟感觉"没变"
     hasLastX = false; hasLastY = false;
     lastXmm  = 0;     lastYmm  = 0;
+    // 设零就是重建坐标系：偏移归零，不需要再对齐
+    posOffsetX = 0; posOffsetY = 0;
+    savedSwX = 0;   savedSwY = 0;
+    anchorPendingX = false; anchorPendingY = false;
+    absMemX = 0;    absMemY = 0;
+    absMemValidX = true; absMemValidY = true;
+    savePositionMemory();
     // UI 立即归零，给操作员一个明确反馈
     emit positionChangex(0);
     emit positionChangey(0);
@@ -1023,6 +1059,8 @@ void ScanControlHuiChuan::init()
     // Qt5 的 INI 默认按本地 8 位编码读写，中文区域名会乱码/匹配不上
     settings->setIniCodec("UTF-8");
 #endif
+    // 上次退出发过 0x80，驱动器多圈基准已丢，载入软件记忆供 0x95 写回
+    loadPositionMemory();
     qCInfo(lcBus) << "汇川控制器初始化: 调度节拍" << kTickMs << "ms, 帧间隔" << kBusGapMs
                   << "ms, 空闲间隔" << kIdleGapMs << "ms, 位置回包超时" << kPosReplyTimeout
                   << "ms, 队列上限" << kMaxTxQueue;
@@ -1162,12 +1200,33 @@ void ScanControlHuiChuan::enqueueFrame(const QByteArray& frame, bool urgent)
 }
 
 
+// 新运动指令要下发时，把该轴还排在队列里没发出去的 0x80 丢掉：
+// 0x80 一旦写出就会清掉驱动器多圈计数，后面的绝对坐标全部错位，
+// 界面也会因为读数作废而停在原地。马上要动电机，本来就不该再断使能。
+void ScanControlHuiChuan::dropPendingMotorOff(quint8 motorId)
+{
+    for (int i = txQueue.size() - 1; i >= 0; --i) {
+        const QByteArray& f = txQueue.at(i);
+        if (f.size() >= 3 && quint8(f[1]) == 0x80 && quint8(f[2]) == motorId) {
+            qCInfo(lcBus) << (motorId == 0x02 ? "X" : "Y")
+                          << "轴马上要发运动指令，丢弃尚未发出的 0x80 断使能";
+            txQueue.removeAt(i);
+        }
+    }
+}
+
+
 bool ScanControlHuiChuan::writeFrame(const QByteArray& frame)
 {
+    const quint8 cmd = frame.size() >= 2 ? quint8(frame[1]) : 0;
+    // 0x80 真正发出去的这一刻，驱动器就会清掉多圈计数：
+    // 必须在写 socket 之前把软件侧最后可信位置记下来，供下一帧位置回包重建 offset。
+    if (cmd == 0x80)
+        rememberPositionBeforeOff(frame.size() >= 3 ? quint8(frame[2]) : quint8(0x00));
+
     const qint64 written = tcpSocket->write(frame);
     tcpSocket->flush();
     busIdle.restart();
-    const quint8 cmd = frame.size() >= 2 ? quint8(frame[1]) : 0;
     const bool isPoll = (cmd == 0x92);
     // 记录运动指令：决定后续轮询节奏(运动中/空闲)以及优先查询哪一轴
     if (cmd == 0xA4 || cmd == 0xA2) {
@@ -1494,6 +1553,11 @@ void ScanControlHuiChuan::runPosintion(int64_t angleControl, uint32_t maxSpeed)
     // 这里粗暴 clear 反而会把还没消费完的位置回包丢掉。
     QByteArray frame;
 
+    // angleControl 是软件坐标（mm*6000），0xA4 要的是驱动器坐标系里的绝对角度：
+    // 减掉对齐偏移后，即使 0x80 把驱动器多圈计数清过，走过的距离仍然等于软件坐标差。
+    const double offsetMm = (motorId == 0x02) ? posOffsetX : posOffsetY;
+    const int64_t driverAngle = angleControl - static_cast<int64_t>(qRound64(offsetMm * 6000.0));
+
 
     /* ---------- CMD FRAME ---------- */
     frame.append(static_cast<char>(0x3E));   // 帧头
@@ -1509,7 +1573,8 @@ void ScanControlHuiChuan::runPosintion(int64_t angleControl, uint32_t maxSpeed)
     QByteArray dataFrame;
 
     // angleControl (8 byte)
-    quint8* angleBytes = reinterpret_cast<quint8*>(&angleControl);
+    int64_t angleToSend = driverAngle;
+    quint8* angleBytes = reinterpret_cast<quint8*>(&angleToSend);
     for(int i = 0; i < 8; ++i){
         dataFrame.append(static_cast<char>(angleBytes[i]));
     }
@@ -1530,6 +1595,8 @@ void ScanControlHuiChuan::runPosintion(int64_t angleControl, uint32_t maxSpeed)
     /* ---------- 入队发送 ---------- */
     qCInfo(lcBus) << "位置指令入队: 电机" << static_cast<int>(motorId)
                   << "目标" << (angleControl * 0.01 / 60.0) << "mm"
+                  << "(驱动器坐标" << (driverAngle * 0.01 / 60.0) << "mm, 偏移"
+                  << offsetMm << "mm)"
                   << "限速" << (maxSpeed / 6000.0) << "mm/s"
                   << "hex:" << frame.toHex(' ').toUpper();
     // 若电机处于 0x80 关闭状态，必须先补 0x88，否则位置指令不会执行
@@ -1550,6 +1617,10 @@ void ScanControlHuiChuan::on_stop(){
 // 必须先发 0x88 电机运行，后续 0xA2/0xA4 才会动作。
 void ScanControlHuiChuan::ensureMotorRunning(quint8 motorId)
 {
+    // 排在该轴后面的 0x80 还没发出去就先丢掉了：马上要发运动指令，
+    // 再断使能会平白把多圈基准弄丢（并发时会出现 0x80 夹在 0x88 前面）。
+    dropPendingMotorOff(motorId);
+
     bool& off = (motorId == 0x02) ? motorOffX : motorOffY;
     if (!off)
         return;
@@ -1563,6 +1634,107 @@ void ScanControlHuiChuan::ensureMotorRunning(quint8 motorId)
                   << "轴处于电机关闭状态，先发 0x88 恢复运行";
     enqueueFrame(frame);
     off = false;
+    // 0x80 之后读数会整体平移，这里不用发 0x95：等下一帧位置回包时
+    // 由 anchorPositionReference 重建 offset，0xA4 目标自动减掉它。
+}
+
+// 记下软件坐标：0x80 一写出，驱动器的多圈计数就作废了
+void ScanControlHuiChuan::rememberPositionBeforeOff(quint8 motorId)
+{
+    if (motorId == 0x00 || motorId == 0x02) {
+        if (hasLastX) { savedSwX = lastXmm; absMemValidX = true; }
+        else if (absMemValidX) { savedSwX = absMemX; }
+        absMemX = savedSwX;
+        anchorPendingX = absMemValidX;
+    }
+    if (motorId == 0x00 || motorId == 0x01) {
+        if (hasLastY) { savedSwY = lastYmm; absMemValidY = true; }
+        else if (absMemValidY) { savedSwY = absMemY; }
+        absMemY = savedSwY;
+        anchorPendingY = absMemValidY;
+    }
+    savePositionMemory();
+
+    // 从这一刻起，晚于 kAnchorGuardMs 收到的回包才属于新坐标系
+    sinceMotorOff.restart();
+
+    auto fmt = [](bool valid, double mm) {
+        return valid ? QString::number(mm, 'f', 3) : QString("未知");
+    };
+    qCInfo(lcBus) << "记忆坐标(断使能后按此对齐): X" << fmt(absMemValidX, savedSwX)
+                  << "Y" << fmt(absMemValidY, savedSwY) << "mm";
+}
+
+// 0x80 之后驱动器多圈计数被清，读数从 153.2 变成 1.28 这种残值。
+// 这里用“断使能前的软件坐标 - 当前读数”重建 offset：
+//   软件坐标 = 读数 + offset
+// 界面因此连续，且后续 0xA4 目标减掉 offset 后，实际走的距离就等于软件坐标差。
+void ScanControlHuiChuan::anchorPositionReference(quint8 axisId, double rawMm)
+{
+    const bool isX = (axisId == 2);
+    bool& pending = isX ? anchorPendingX : anchorPendingY;
+    const bool valid = isX ? absMemValidX : absMemValidY;
+    const double savedSw = isX ? savedSwX : savedSwY;
+    double& offset = isX ? posOffsetX : posOffsetY;
+    const char* axisName = isX ? "X" : "Y";
+
+    pending = false;
+    if (!valid) {
+        offset = 0;
+        qCWarning(lcBus) << axisName
+                         << "轴没有可信坐标基准，断使能后无法对齐，请重新“设置零点”";
+        return;
+    }
+
+    const double oldOffset = offset;
+    offset = savedSw - rawMm;
+    qCInfo(lcBus) << axisName << "轴位置基准重新对齐: 断使能前" << QString::number(savedSw, 'f', 3)
+                  << "mm, 驱动器读数" << QString::number(rawMm, 'f', 3)
+                  << "mm, 偏移" << QString::number(oldOffset, 'f', 3)
+                  << "->" << QString::number(offset, 'f', 3);
+
+    // 对齐后软件坐标会跳一段，别让跳变过滤把这帧丢掉
+    if (isX) { hasLastX = false; rejectCountX = 0; }
+    else     { hasLastY = false; rejectCountY = 0; }
+}
+
+void ScanControlHuiChuan::savePositionMemory()
+{
+    if (!settings)
+        return;
+    settings->beginGroup("position");
+    settings->setValue("validX", absMemValidX);
+    settings->setValue("validY", absMemValidY);
+    settings->setValue("absX", absMemX);
+    settings->setValue("absY", absMemY);
+    // released=1 表示发过 0x80，重启后驱动器读数已平移，必须重新对齐
+    settings->setValue("released", anchorPendingX || anchorPendingY);
+    settings->endGroup();
+    settings->sync();
+}
+
+void ScanControlHuiChuan::loadPositionMemory()
+{
+    if (!settings)
+        return;
+    settings->beginGroup("position");
+    absMemX = settings->value("absX", 0.0).toDouble();
+    absMemY = settings->value("absY", 0.0).toDouble();
+    absMemValidX = settings->value("validX", false).toBool();
+    absMemValidY = settings->value("validY", false).toBool();
+    const bool released = settings->value("released", false).toBool();
+    settings->endGroup();
+
+    // 只有上次退出前确实发过 0x80，驱动器读数才整体平移过、需要重新对齐；
+    // 没发过（崩溃/断电）说明驱动器自己的多圈计数还在，直接用它。
+    savedSwX = absMemX;
+    savedSwY = absMemY;
+    anchorPendingX = released && absMemValidX;
+    anchorPendingY = released && absMemValidY;
+    if (anchorPendingX || anchorPendingY) {
+        qCInfo(lcBus) << "载入位置记忆(上次退出发过 0x80): X" << absMemX << "Y" << absMemY
+                      << "mm, 连上后按第一帧位置读数重新对齐坐标";
+    }
 }
 
 // 断使能（Motor Off，0x80）：清除运行状态并断开电机输出，电机可自由手推。
@@ -1608,6 +1780,8 @@ void ScanControlHuiChuan::releaseMotorsDirect(const char* reason, bool waitForSe
         return frame;
     };
     const QByteArray data = buildOff(0x02) + buildOff(0x01);
+    // 与队列路径一样：0x80 写入前先记住软件坐标，下一帧读数用来重建 offset
+    rememberPositionBeforeOff(0x00);
     const qint64 written = tcpSocket->write(data);
     tcpSocket->flush();
     busIdle.restart();
