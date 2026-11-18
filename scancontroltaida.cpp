@@ -105,7 +105,21 @@ ScanControlTaiDa::ScanControlTaiDa(QObject *parent) :
 
 ScanControlTaiDa::~ScanControlTaiDa()
 {
-
+    qCInfo(lcBus) << "台达控制器析构";
+    userDisconnect = true;
+    if (tcpSocket) {
+        if (tcpSocket->state() != QAbstractSocket::UnconnectedState)
+            tcpSocket->abort();
+        delete tcpSocket;
+        tcpSocket = nullptr;
+    }
+    if (timer) {
+        timer->stop();
+        delete timer;
+        timer = nullptr;
+    }
+    delete settings;
+    settings = nullptr;
 }
 
 
@@ -114,6 +128,9 @@ ScanControlTaiDa::~ScanControlTaiDa()
 void ScanControlTaiDa::connectFun()
 {
     settings = new QSettings("./scan_setting.ini", QSettings::IniFormat);
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0) && QT_CONFIG(textcodec)
+    settings->setIniCodec("UTF-8");   //Qt5 INI 默认本地编码，中文会乱码
+#endif
 
     timer = new QTimer(this);
     timer->setInterval(50);
@@ -141,39 +158,75 @@ void ScanControlTaiDa::readAxisEndState()
 
 void ScanControlTaiDa::on_connectBtn_clicked()
 {
-    qCInfo(lcBus) << "台达控制器连接网关" << PlcIP << PlcPort;
-    tcpSocket = new QTcpSocket(this);
-    tcpSocket->setProxy(QNetworkProxy::NoProxy);  // ✅ 禁用代理
+    // 已连接时再点一次就是主动断开；未连接时复用同一个 socket，避免重复 new 造成信号堆积
+    if (tcpSocket && tcpSocket->state() != QAbstractSocket::UnconnectedState) {
+        userDisconnect = true;
+        qCInfo(lcBus) << "操作员主动断开网关" << PlcIP << PlcPort
+                      << "连接保持" << (connectedSince.isValid() ? connectedSince.elapsed() : -1) << "ms";
+        tcpSocket->disconnectFromHost();
+        return;
+    }
+    if (!tcpSocket)
+        tcpSocket = new QTcpSocket(this);
+
+    if (!socketSignalConnected) {
+        socketSignalConnected = true;
+        connect(tcpSocket, &QTcpSocket::connected, this, [this]{
+            connectedSince.restart();
+            warnedNotConnected = false;
+            userDisconnect = false;
+            qCInfo(lcBus) << "网关已连接" << PlcIP << PlcPort
+                          << "对端" << tcpSocket->peerAddress().toString() << tcpSocket->peerPort();
+            emit tcpStateChange(true);
+        });
+        connect(tcpSocket, &QTcpSocket::disconnected, this, [this]{
+            const qint64 heldMs = connectedSince.isValid() ? connectedSince.elapsed() : -1;
+            if (userDisconnect)
+                qCInfo(lcBus) << "网关已断开(操作员主动断开)" << PlcIP << PlcPort
+                              << "连接保持" << heldMs << "ms";
+            else
+                qCCritical(lcBus) << "网关连接意外断开" << PlcIP << PlcPort
+                                  << "连接保持" << heldMs << "ms" << tcpSocket->errorString();
+            userDisconnect = false;
+            rxBuffer.clear();
+            emit tcpStateChange(false);
+        });
+        connect(tcpSocket, &QTcpSocket::stateChanged, this,
+                [](QAbstractSocket::SocketState state){
+            qCInfo(lcBus) << "网关 socket 状态 ->" << lockeLog::socketStateName(state)
+                          << "(" << static_cast<int>(state) << ")";
+        });
+        connect(tcpSocket,
+                QOverload<QAbstractSocket::SocketError>::of(&QTcpSocket::error),
+                this,
+                [this](QAbstractSocket::SocketError err){
+            qCWarning(lcBus) << "网关 socket 错误: 代码" << static_cast<int>(err)
+                             << lockeLog::socketErrorName(err) << tcpSocket->errorString()
+                             << "状态" << lockeLog::socketStateName(tcpSocket->state());
+            emit tcpStateChange(false);
+        });
+
+        connect(tcpSocket, &QTcpSocket::readyRead, this, [this]() {
+            const QByteArray chunk = tcpSocket->readAll();
+            qCDebug(lcBus) << "RX" << chunk.size() << "字节" << chunk.toHex(' ').toUpper();
+            rxBuffer.append(chunk);
+
+            while (true) {
+                int idx = rxBuffer.indexOf("\r\n");
+                if (idx < 0) break;
+
+                QByteArray frame = rxBuffer.left(idx);
+                rxBuffer.remove(0, idx + 2);
+
+                processFrame(frame);
+            }
+        });
+    }
+
+    qCInfo(lcBus) << "发起台达网关 TCP 连接" << PlcIP << PlcPort
+                  << "当前状态" << lockeLog::socketStateName(tcpSocket->state());
+    tcpSocket->setProxy(QNetworkProxy::NoProxy);
     tcpSocket->connectToHost(PlcIP, PlcPort);
-
-    connect(tcpSocket, &QTcpSocket::connected, this, [this]{
-        warnedNotConnected = false;
-        qCInfo(lcBus) << "网关已连接" << PlcIP << PlcPort;
-    });
-    connect(tcpSocket, &QTcpSocket::disconnected, this, [this]{
-        qCWarning(lcBus) << "网关已断开" << PlcIP << PlcPort;
-    });
-    connect(tcpSocket,
-            QOverload<QAbstractSocket::SocketError>::of(&QTcpSocket::error),
-            this,
-            [this](QAbstractSocket::SocketError err){
-        qCWarning(lcBus) << "网关 socket 错误:" << err << tcpSocket->errorString();
-    });
-
-    connect(tcpSocket, &QTcpSocket::readyRead, this, [this]() {
-        rxBuffer.append(tcpSocket->readAll());
-
-        while (true) {
-            int idx = rxBuffer.indexOf("\r\n");
-            if (idx < 0) break;
-
-            QByteArray frame = rxBuffer.left(idx);
-            rxBuffer.remove(0, idx + 2);
-
-            qCDebug(lcBus) << "RX" << frame.toHex(' ').toUpper();
-            processFrame(frame);
-        }
-    });
 }
 
 
@@ -197,7 +250,10 @@ void ScanControlTaiDa::on_setOriginBtn_clicked()
     tcpSocket->flush();
 
     if (written != frame.size()) {
-        qCWarning(lcBus) << "设置零点: 写 socket 失败" << tcpSocket->errorString();
+        qCWarning(lcBus) << "设置零点: 写 socket 失败, 应写" << frame.size() << "实际" << written
+                         << "状态" << lockeLog::socketStateName(tcpSocket->state())
+                         << "错误" << lockeLog::socketErrorName(tcpSocket->error())
+                         << tcpSocket->errorString() << "hex:" << frame.toHex(' ').toUpper();
         return;
     }
     qCInfo(lcBus) << "TX 1号电机 当前位置写为零点(0x19):" << frame.toHex(' ').toUpper();
@@ -389,7 +445,10 @@ void ScanControlTaiDa::updataCurrentPos()
     tcpSocket->flush();
 
     if (written != frame.size()) {
-        qCWarning(lcBus) << "位置查询: 写 socket 失败" << tcpSocket->errorString();
+        qCWarning(lcBus) << "位置查询: 写 socket 失败, 应写" << frame.size() << "实际" << written
+                         << "状态" << lockeLog::socketStateName(tcpSocket->state())
+                         << "错误" << lockeLog::socketErrorName(tcpSocket->error())
+                         << tcpSocket->errorString() << "hex:" << frame.toHex(' ').toUpper();
         return;
     }
     qCDebug(lcBus) << "TX 1号电机 读编码器(0x9C):" << frame.toHex(' ').toUpper();
@@ -457,7 +516,10 @@ void ScanControlTaiDa::sendCommandTcp(quint8 motorId, int32_t speedValue,int cmd
     tcpSocket->flush();
 
     if (written != frame.size()) {
-        qCWarning(lcBus) << "速度指令: 写 socket 失败, 电机" << motorId << tcpSocket->errorString();
+        qCWarning(lcBus) << "速度指令: 写 socket 失败, 电机" << motorId
+                         << "状态" << lockeLog::socketStateName(tcpSocket->state())
+                         << "错误" << lockeLog::socketErrorName(tcpSocket->error())
+                         << tcpSocket->errorString() << "hex:" << frame.toHex(' ').toUpper();
         return;
     }
     qCInfo(lcBus) << "TX 电机" << motorId << "速度控制 cmd=0x" + QString::number(cmd, 16).toUpper()

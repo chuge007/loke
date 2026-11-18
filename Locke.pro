@@ -60,3 +60,6 @@ INCLUDEPATH +=$$PWD/SDL3-3.2.16/include
 
 
 LIBS += -L$$PWD/SDL3-3.2.16/lib/x64/ -lSDL3
+
+# 启动时判断进程是否以管理员运行（OpenProcessToken / GetTokenInformation）
+win32: LIBS += -ladvapi32

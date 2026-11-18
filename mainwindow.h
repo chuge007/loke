@@ -33,7 +33,15 @@ public:
     std::vector<Point2D> path;
     QTimer* arriveTimer = nullptr;
 
-    bool stopScan;
+    bool stopScan = true;   // 上电默认“未在扫查”，避免未初始化时被误读
+
+    // ---- 暂停/继续 ----
+    // 暂停只冻结“推进到下一个点”，不改动已下发的目标位置：
+    // 电机走到当前点后停住，继续时按 currentPathIndex 重新下发并重启到位检测，
+    // 因此是从断点接着扫，而不是从头开始。与“结束”互斥，结束会清空本轮进度。
+    bool scanPaused = false;
+    void togglePauseScan();
+    void updatePauseUi();
 
     // ---- 事件驱动到位检测 ----
     // 不再用 50ms 轮询比较位置，改成：每次 updatePosition* 收到真实位置回包

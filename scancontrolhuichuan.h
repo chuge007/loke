@@ -52,6 +52,8 @@ public slots:
     void on_end();
     void on_alarmReset();
     void on_backZero();
+    void releaseMotors();          //断使能：0x80 电机关闭，电机可手推
+    void ensureMotorRunning(quint8 motorId);   //0x88：电机关闭状态下发运动指令前恢复运行
 
     void processFrame(const QByteArray& frame);
     void processFrame92(const QByteArray& frame);
@@ -66,6 +68,7 @@ private:
 
 private slots:
     void performTasks();
+    void tryAutoReconnect();          //意外断线后自动重连
 
 
 
@@ -76,6 +79,7 @@ private:
     void writeAxisStopStatus(int address);
     void writeBackZero();
     void readAxisEndState();
+    void releaseMotorsDirect(const char* reason, bool waitForSend = false);   //链路异常时绕开队列直接写 0x80
 
     void updataCurrentPos();        //更新当前点位置
     void perfromJogTasks();         //点动
@@ -101,6 +105,8 @@ private:
     QQueue<QByteArray> txQueue;     //待发送帧队列(控制指令优先于位置查询)
     QElapsedTimer busIdle;          //距上一次发帧/收到位置回包的时间
     QElapsedTimer posReplyWait;     //当前位置查询已等待时间
+    QElapsedTimer sinceMotionCmd;   //距最近一次运动指令(0xA4/0xA2)发出的时间
+    quint8 activeAxisId = 0;        //最近一次运动指令的轴：2=X, 1=Y, 0=未知
     int rejectCountX = 0;           //X 连续跳变拒绝次数
     int rejectCountY = 0;           //Y 连续跳变拒绝次数
 
@@ -118,12 +124,26 @@ private:
     AxisStats statY;
     AxisStats& axisStat(uint8_t axisId) { return axisId == 2 ? statX : statY; }
     QElapsedTimer statWindow;       //统计窗口计时
+    QElapsedTimer connectedSince;   //本次连接建立时刻，断线时用于计算连接保持时长
     int statCmdFrames = 0;          //窗口内发出的控制指令帧
     int statWriteFails = 0;         //窗口内写 socket 失败
     int statQueueDrops = 0;         //窗口内队列溢出丢弃
     int statQueuePeak = 0;          //窗口内队列峰值
     int statJunkBytes = 0;          //窗口内丢弃的非位置字节(含指令应答)
+    // 位置回包解析层级命中数：L1=完整帧，L2/L3=被吃掉帧头/截断的残帧。
+    // 网关真正透明时 L2/L3 恒为 0，这两项是网关配置是否正确的直接证据。
+    int statParseL1 = 0;
+    int statParseL2 = 0;
+    int statParseL3 = 0;
     bool userDisconnect = false;    //是否为操作员主动断开
+    bool handlingSocketError = false;   //socket 错误处理中，防止嵌套错误递归
+    bool motorOffX = true;          //X 轴处于 0x80 电机关闭状态（上电未知，先按关闭处理）
+    bool motorOffY = true;          //Y 轴处于 0x80 电机关闭状态
+    QTimer *reconnectTimer = nullptr;   //意外断线后的重连定时器
+    QTimer *connectTimeoutTimer = nullptr;  //单次连接超时；复用定时器，避免旧回调误伤新连接
+    int reconnectAttempts = 0;          //连续自动重连次数
+    int lastWifiResetAttempt = -1;      //上次因重连失败而重置 Wi-Fi 的次数
+    void scheduleReconnect(const char* reason);
 
 
 

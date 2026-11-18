@@ -4,6 +4,7 @@
 #include "scancontrolabstract.h"
 #include <QMutex>
 #include <QTcpSocket>
+#include <QElapsedTimer>
 
 class ScanControlTaiDa : public ScanControlAbstract
 {
@@ -80,6 +81,9 @@ private:
 
 private:
     QTcpSocket *tcpSocket = nullptr;
+    bool socketSignalConnected = false;    //防止重复 connect 信号
+    bool userDisconnect = false;           //区分操作员主动断开与意外断线
+    QElapsedTimer connectedSince;          //本次连接建立时刻
     QString PlcIP;
     int PlcPort = 502;
     QSettings *settings = nullptr;

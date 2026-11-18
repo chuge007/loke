@@ -305,9 +305,13 @@
      </rect>
     </property>
     <property name="text">
-     <string>复位</string>
+     <string>修复</string>
     </property>
-   </widget>
+    <property name="toolTip">
+     <string>清除驱动器错误标志（协议 0x9B）
+    只清故障残留，故障原因仍在时会立即重新置位</string>
+    </property>
+    </widget>
    <widget class="QLabel" name="label_13">
     <property name="geometry">
      <rect>

@@ -40,3 +40,12 @@ Thumbs.db
 # Qt Creator clangd cache / shadow build
 .qtc_clangd/
 build/
+
+# GitNexus 本地索引 / 编译数据库 / 一次性调试补丁
+.gitnexus/
+compile_commands.json
+fix_scan_timing.patch
+
+# 本地 AI 助手工程数据
+.codebuddy/
+

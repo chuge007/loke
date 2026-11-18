@@ -33,6 +33,10 @@ MainWindow::~MainWindow()
 {
     qCInfo(lcUi) << "主窗口关闭, 扫查状态: 停止" << stopScan << "当前点" << currentPathIndex << "/" << path.size()
                  << "位置" << position.x << position.y;
+    // scanCtrl 是 new 出来且没有父对象，不显式销毁就永远不会走析构：
+    // 结果是退出时 0x80 断使能不发送，socket 也只能等进程结束由系统关闭。
+    delete scanCtrl;
+    scanCtrl = nullptr;
     delete ui;
 }
 
@@ -117,6 +121,11 @@ void MainWindow::initWidget()
         dir.mkpath(".");
 
     settings=new QSettings(appDataPath+"/settings.ini", QSettings::IniFormat);
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0) && QT_CONFIG(textcodec)
+    // Qt5 的 INI 默认按本地 8 位编码读写；区域名是中文，必须显式 UTF-8
+    settings->setIniCodec("UTF-8");
+#endif
+    qCInfo(lcUi) << "配置文件" << settings->fileName() << "编码 UTF-8";
 
     ui->backOrigin_velocity->setText(settings->value("backOrigin_velocity", "0").toString());
     ui->jog_velocity->setText(settings->value("jog_velocity", "0").toString());
@@ -208,7 +217,9 @@ void MainWindow::connectFun()
 
     connect(scanCtrl, &ScanControlAbstract::tcpStateChange,
             this, [this](bool connected) {
-        qCInfo(lcUi) << "连接状态变化:" << (connected ? "已连接" : "未连接");
+        qCInfo(lcUi) << "连接状态变化:" << (connected ? "已连接" : "未连接")
+                     << "网关" << ui->IP_Edit->text() << ui->port_Edit->text()
+                     << "扫查进度" << currentPathIndex << "/" << path.size();
         ui->connectBtn->setText(connected ? "discon" : "conect");
         if (!connected) {
             // 断线后旧位置已不可信，显示占位符并要求重新收到回包后才参与到位判定
@@ -229,17 +240,16 @@ void MainWindow::connectFun()
     connect(ui->connectBtn, &QPushButton::clicked, scanCtrl, &ScanControlAbstract::on_connectBtn_clicked);
 
     connect(ui->startScanBtn, &QPushButton::clicked, this, &MainWindow::setStart);
-    connect(ui->stopScanBtn, &QPushButton::clicked, scanCtrl, &ScanControlAbstract::on_stop);
-    connect(ui->stopScanBtn, &QPushButton::clicked, this, [this]() {
-        qCInfo(lcUi) << "点击 暂停, 当前点" << currentPathIndex << "/" << path.size()
-                     << "位置" << position.x << position.y;
-        stopFreeMotion();
-        arriveActive = false;
-    });
+
+    // 暂停/继续：原来的小“暂停”只能停、没法继续，这里做成开关
+    connect(ui->stopScanBtn, &QPushButton::clicked, this, &MainWindow::togglePauseScan);
+
+    // “修复”：清除驱动器错误标志（协议 0x9B），只发指令，不影响扫查进度
+    connect(ui->resetScanBtn, &QPushButton::clicked, scanCtrl, &ScanControlAbstract::on_alarmReset);
+    updatePauseUi();
 
     connect(ui->backZeroScanBtn, &QPushButton::clicked, this, &MainWindow::on_backZero);
     connect(ui->endScanBtn, &QPushButton::clicked, this, &MainWindow::scanEnd);
-    connect(ui->resetScanBtn, &QPushButton::clicked, scanCtrl, &ScanControlAbstract::on_alarmReset);
 
     connect(ui->xAddBtn, &QPushButton::pressed, scanCtrl, &ScanControlAbstract::on_xAddBtn_pressed);
     connect(ui->xAddBtn, &QPushButton::released, scanCtrl, &ScanControlAbstract::on_xAddBtn_released);
@@ -593,9 +603,7 @@ void MainWindow::on_connectBtn_clicked(){
 
 }
 void MainWindow::setOrigin(){
-
-
-
+    qCInfo(lcUi) << "设置起点: 当前位置" << position.x << position.y;
     saveseting();
 }
 
@@ -655,6 +663,9 @@ void MainWindow::sendNextPoint()
         if (scanForcedTotal > 0)
             qCWarning(lcScan) << "本轮有" << scanForcedTotal << "个点超时未到位被跳过，这些位置可能漏扫";
 
+        scanPaused = false;    // 本轮扫完，暂停态一并清除
+        updatePauseUi();
+
         // 只有勾选“自动回原”时，才允许回原并按循环配置继续扫查。
         if(!stopScan
                 && ui->autoBackOriginCheck->isChecked()
@@ -686,6 +697,9 @@ void MainWindow::sendNextPoint()
                 arriveTimer->deleteLater();
                 arriveTimer = nullptr;
             }
+            // 扫查结束、电机已停在最后一点：断使能，方便操作员手推调整
+            qCInfo(lcScan) << "扫查结束: 请求断使能，松开 X/Y 电机";
+            scanCtrl->releaseMotors();
             ui->xAddBtn->setEnabled(true);
             ui->xSubBtn->setEnabled(true);
             ui->yAddBtn->setEnabled(true);
@@ -800,9 +814,15 @@ void MainWindow::startArriveCheck(Point2D target, bool checkX, bool checkY)
         }
         if (!firstPosReceived) {
             if (arriveElapsed.elapsed() > 3000) {
-                qCCritical(lcScan) << "扫查中止: 3s 内没有收到任何位置回包，检查网关连接和电机通讯";
+                qCCritical(lcScan) << "扫查中止: 3s 内没有收到任何位置回包，检查网关连接和电机通讯"
+                                   << "点" << currentPathIndex + 1 << "/" << path.size()
+                                   << "目标" << arriveTarget.x << arriveTarget.y
+                                   << "界面位置" << position.x << position.y
+                                   << "网关" << ui->IP_Edit->text() << ui->port_Edit->text();
                 arriveActive = false;
                 stopScan = true;
+                scanPaused = false;
+                updatePauseUi();
                 arriveTimer->stop();
                 arriveTimer->deleteLater();
                 arriveTimer = nullptr;
@@ -971,6 +991,8 @@ void MainWindow::setStart(){
     step=ui->y_step->text().toFloat();
 
     stopScan=false;
+    scanPaused=false;          // 新一轮扫查：清掉上一轮的暂停态，按钮回到“暂停”
+    updatePauseUi();
 
 
     if (ui->freeMotionCheck->isChecked()) {
@@ -1032,13 +1054,90 @@ void MainWindow::enableManualControls()
     ui->setMOrigin->setEnabled(true);
 }
 
-void MainWindow::scanEnd(){
+// 暂停按钮文字跟着状态走：暂停中显示“继续”，运行/空闲时显示“暂停”
+void MainWindow::updatePauseUi()
+{
+    const QString idleText   = QString::fromUtf8("暂停");
+    const QString pausedText = QString::fromUtf8("继续");
+    const QString text = scanPaused ? pausedText : idleText;
+    if (ui->stopScanBtn->text() != text)
+        ui->stopScanBtn->setText(text);
+}
 
+// 暂停 / 继续。
+// 暂停只冻结“推进到下一个点”，不改动已经下发的目标位置：
+//   汇川侧 on_stop 本来就不发停止指令，电机会走完当前目标点后自然停住，
+//   所以暂停 = 停在这里等，而不是急停。
+// 继续时按 currentPathIndex 重新下发当前点并重启到位检测，因此是“从断点接着扫”。
+// 与“结束”的区别：结束会置 stopScan=true 并清掉本轮进度，必须点“开始”从头来。
+void MainWindow::togglePauseScan()
+{
+    if (!scanPaused) {
+        // ---- 暂停 ----
+        // 空闲、已结束、已到末尾都不该进入暂停态，否则按钮会卡在“继续”上
+        const bool scanning = !stopScan && (!path.empty() || freeMotionActive);
+        if (!scanning) {
+            qCWarning(lcUi) << "暂停无效: 当前没有正在执行的扫查";
+            return;
+        }
+        scanPaused = true;
+
+        // 冻结推进：到位检测一停，currentPathIndex 就不会再自增
+        arriveActive = false;
+        if (arriveTimer) {
+            arriveTimer->stop();
+            arriveTimer->deleteLater();
+            arriveTimer = nullptr;
+        }
+
+        // 自由运动只置位，不能调 stopFreeMotion()：那个会把范围/目标清零，之后没法恢复
+        if (freeMotionActive)
+            freeMotionActive = false;
+
+        // 保留原调用：台达/汇川当前都未实现停止指令，行为不变，将来实现后可自动生效
+        scanCtrl->on_stop();
+
+        updatePauseUi();
+        qCInfo(lcScan) << "扫查已暂停: 当前点" << currentPathIndex << "/" << path.size()
+                       << "位置" << position.x << position.y;
+        return;
+    }
+
+    // ---- 继续 ----
+    scanPaused = false;
+    updatePauseUi();
+
+    if (ui->freeMotionCheck->isChecked()) {
+        if (freeMotionAxisXEnabled || freeMotionAxisYEnabled)
+            freeMotionActive = true;          // 范围和目标都还在，原地恢复往复
+        else
+            startFreeMotion();                // 参数丢了就按界面重新建一次
+        qCInfo(lcScan) << "自由运动继续: X范围" << freeMotionRangeX << "Y范围" << freeMotionRangeY;
+        return;
+    }
+
+    if (path.empty() || currentPathIndex >= static_cast<int>(path.size())) {
+        qCWarning(lcScan) << "无处可继续: 路径为空或已到末尾，请点“开始”重新扫查";
+        return;
+    }
+
+    qCInfo(lcScan) << "扫查继续: 从第" << currentPathIndex + 1 << "/" << path.size()
+                   << "点" << path[currentPathIndex].x << path[currentPathIndex].y << "接着执行";
+    // 直接复用 sendNextPoint：它按 currentPathIndex 只下发需要动的轴，并重新武装到位检测
+    sendNextPoint();
+}
+
+void MainWindow::scanEnd(){
+    const qint64 usedMs = scanElapsed.isValid() ? scanElapsed.elapsed() : 0;
     qCInfo(lcUi) << "点击 结束, 当前点" << currentPathIndex << "/" << path.size()
-                 << "位置" << position.x << position.y;
+                 << "位置" << position.x << position.y
+                 << "本轮用时" << usedMs / 1000.0 << "s"
+                 << "卡滞重发" << scanResendTotal << "次, 超时跳点" << scanForcedTotal << "次";
     stopScan=true;
     stopFreeMotion();
     arriveActive = false;
+    scanPaused=false;          // 结束时清掉暂停态，否则下一轮按钮会停在“继续”
+    updatePauseUi();
 
     if(arriveTimer){
         arriveTimer->stop();
@@ -1062,8 +1161,7 @@ void MainWindow::scanEnd(){
 }
 
 void MainWindow::setEnd(){
-
-
+    qCInfo(lcUi) << "设置终点: 当前位置" << position.x << position.y;
     saveseting();
 }
 

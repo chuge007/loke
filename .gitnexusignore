@@ -1,0 +1,33 @@
+# GitNexus 索引忽略规则（语法同 .gitignore，支持 ! 反向排除）
+# 目的：让知识图谱只覆盖项目自身代码，避免第三方 SDK 淹没调用链与语义检索结果。
+
+# ---- 第三方 SDK ----
+# 仅在 Locke.pro 中引用 include/lib 路径，源码未调用 SDL API；
+# 索引它会贡献约 94% 的节点，属于纯噪音。
+SDL3-3.2.16/
+
+# ---- GitNexus 自动生成的上下文文件 ----
+# 由 analyze 写入，索引进图谱会造成文档自引用与重复搜索结果。
+AGENTS.md
+CLAUDE.md
+
+# ---- 构建 / IDE 缓存与日志 ----
+_*.log
+*.log
+.qmake.stash
+.qtc_clangd/
+.qtcreator/
+.vscode/
+.claude/
+.codebuddy/
+build/
+release/
+debug/
+
+# ---- 一次性调试产物 ----
+*.patch
+compile_commands.json
+
+# ---- 二进制文档 ----
+*.pdf
+*.docx

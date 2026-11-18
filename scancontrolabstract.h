@@ -106,6 +106,9 @@ public slots:
     virtual void on_backZero()=0;
     virtual void on_setOriginBtn_clicked()=0;
 
+    // 断使能/松开电机：默认不支持；汇川控制器按协议发 0x80(电机关闭)，电机可手推
+    virtual void releaseMotors() {}
+
 signals:
     void tcpStateChange(bool connected);
     void positionChangex(float posx);                   //轴位置变化
