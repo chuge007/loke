@@ -4,7 +4,7 @@
 #
 #-------------------------------------------------
 
-QT       += core gui serialbus network
+QT       += core gui network
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -36,16 +36,13 @@ msvc {
 SOURCES += \
         main.cpp \
         mainwindow.cpp \
-        scancontrolhuichuan.cpp \
-        scancontroltaida.cpp
+        scancontrolhuichuan.cpp
 
 HEADERS += \
         locke_log.h \
         mainwindow.h \
-        modbusconfig.h \
         scancontrolabstract.h \
-        scancontrolhuichuan.h \
-        scancontroltaida.h
+        scancontrolhuichuan.h
 
 FORMS += \
         mainwindow.ui

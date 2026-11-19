@@ -2,18 +2,13 @@
 #define SCANCONTROLABSTRACT_H
 
 #include <QObject>
-#include <QModbusTcpClient>
-#include <QModbusReply>
 #include <QDoubleValidator>
 #include <QPointF>
 #include <QTimer>
 #include <QQueue>
 #include <QPair>
 #include <QSettings>
-#include <QTimer>
-#include <QTime>
 
-#include "modbusconfig.h"
 #include <QTcpSocket>
 
 
@@ -87,17 +82,6 @@ public slots:
     virtual void on_yAddBtn_released() = 0;
     virtual void on_ySubBtn_pressed() = 0;  //Y-
     virtual void on_ySubBtn_released() = 0;
-    virtual void on_zAddBtn_pressed() = 0;  //Z+
-    virtual void on_zAddBtn_released() = 0;
-    virtual void on_zSubBtn_pressed() = 0;  //Z-
-    virtual void on_zSubBtn_released() = 0;
-    virtual void on_rAddBtn_pressed() = 0;  //Z+
-    virtual void on_rAddBtn_released() = 0;
-    virtual void on_rSubBtn_pressed() = 0;  //Z-
-    virtual void on_rSubBtn_released() = 0;
-
-
-    virtual void on_setLimitBtn_clicked() = 0;      //设置机械极限位
 
     virtual void on_start()=0;
     virtual void on_stop()=0;

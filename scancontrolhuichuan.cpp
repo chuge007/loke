@@ -156,73 +156,6 @@ quint8 ScanControlHuiChuan::calculateChecksum(const QByteArray &data) {
 }
 
 
-//void ScanControlHuiChuan::processFrame(const QByteArray& frame)
-//{
-//    // 最小长度校验
-//    // CMD(5) + DATA(8) = 13 byte
-//    if (frame.size() < 13) {
-//        qDebug() << "[FRAME] length error:" << frame.size();
-//        return;
-//    }
-
-//    const uint8_t* buf = reinterpret_cast<const uint8_t*>(frame.constData());
-
-//    // ========== 帧头校验 ==========
-//    if (buf[0] != 0x3E || buf[1] != 0x90) {
-//        qDebug() << "[FRAME] header error";
-//        return;
-//    }
-
-//    uint8_t id   = buf[2];
-//    uint8_t len  = buf[3];
-//    uint8_t cmd_sum = buf[4];
-
-//    // CMD 校验
-//    uint8_t calc_cmd_sum = buf[0] + buf[1] + buf[2] + buf[3];
-//    if (cmd_sum != calc_cmd_sum) {
-//        qDebug() << "[FRAME] CMD checksum error";
-//        return;
-//    }
-
-//    // DATA 起始索引
-//    int dataIndex = 5;
-
-//    // DATA 校验
-//    uint8_t data_sum = buf[dataIndex + 7];  // DATA_SUM
-//    uint8_t calc_data_sum = 0;
-//    for (int i = 0; i < 7; ++i) {
-//        calc_data_sum += buf[dataIndex + i];
-//    }
-
-//    if (data_sum != calc_data_sum) {
-//        qDebug() << "[FRAME] DATA checksum error";
-//        return;
-//    }
-
-//    // ========== 数据解析 ==========
-//    int8_t temperature = static_cast<int8_t>(buf[dataIndex + 0]);
-
-//    int16_t iq_or_power =
-//        (int16_t)(buf[dataIndex + 2] << 8 | buf[dataIndex + 1]);
-
-//    int16_t speed =
-//        (int16_t)(buf[dataIndex + 4] << 8 | buf[dataIndex + 3]);
-
-//    uint16_t encoder =
-//        (uint16_t)(buf[dataIndex + 6] << 8 | buf[dataIndex + 5]);
-
-//    // ========== 输出 ==========
-//    qDebug() << "ID:" << id
-//             << "Temp:" << temperature
-//             << "IQ/Power:" << iq_or_power
-//             << "Speed:" << speed
-//             << "Encoder:" << encoder;
-
-//    // 👉 这里就是你要的编码器值
-//    // encoder = 0 ~ 65535 (取决于 14/15/16bit 编码器)
-
-//    emit positionChange(encoder);
-//}
 
 
 
@@ -355,11 +288,6 @@ void ScanControlHuiChuan::processFrame92(const QByteArray& frame)
     double angleDeg = motorAngle * 0.01;
 
     // ===== 输出 =====
-    //    qDebug() << "[0x92] ID:" << id
-    //             << "motorAngle(raw):" << motorAngle
-    //             << "angle(deg):" << angleDeg
-    //             <<"mm"<<angleDeg/60.0;
-
     qCDebug(lcPos) << "[0x92] 解析成功 ID:" << id
              << "motorAngle(raw):" << motorAngle
              << "angle(deg):" << angleDeg
@@ -626,20 +554,6 @@ ScanControlHuiChuan::~ScanControlHuiChuan()
     }
 }
 
-
-
-
-void ScanControlHuiChuan::writeAxisStopStatus(int address)
-{
-
-}
-
-
-
-void ScanControlHuiChuan::readAxisEndState()
-{
-
-}
 
 
 
@@ -968,69 +882,6 @@ void ScanControlHuiChuan::on_ySubBtn_released()
     updateCurPos = false;
     axisJog = AxisJog::YJogSubReleased;
 }
-
-void ScanControlHuiChuan::on_zAddBtn_pressed()
-{
-    if (!jogAllowed("Z+ 按下")) return;
-    updateCurPos = false;
-    axisJog = AxisJog::ZJogAddPressed;
-}
-
-void ScanControlHuiChuan::on_zAddBtn_released()
-{
-    if (!jogAllowed("Z+ 松开")) return;
-    updateCurPos = false;
-    axisJog = AxisJog::ZJogAddReleased;
-}
-
-void ScanControlHuiChuan::on_zSubBtn_pressed()
-{
-    if (!jogAllowed("Z- 按下")) return;
-    updateCurPos = false;
-    axisJog = AxisJog::ZJogSubPressed;
-}
-
-void ScanControlHuiChuan::on_zSubBtn_released()
-{
-    if (!jogAllowed("Z- 松开")) return;
-    updateCurPos = false;
-    axisJog = AxisJog::ZJogSubReleased;
-}
-
-void ScanControlHuiChuan::on_rAddBtn_pressed()
-{
-    if (!jogAllowed("R+ 按下")) return;
-    updateCurPos = false;
-    axisJog = AxisJog::RJogAddPressed;
-}
-
-void ScanControlHuiChuan::on_rAddBtn_released()
-{
-    if (!jogAllowed("R+ 松开")) return;
-    updateCurPos = false;
-    axisJog = AxisJog::RJogAddReleased;
-}
-
-void ScanControlHuiChuan::on_rSubBtn_pressed()
-{
-    if (!jogAllowed("R- 按下")) return;
-    updateCurPos = false;
-    axisJog = AxisJog::RJogSubPressed;
-}
-
-void ScanControlHuiChuan::on_rSubBtn_released()
-{
-    if (!jogAllowed("R- 松开")) return;
-    updateCurPos = false;
-    axisJog = AxisJog::RJogSubReleased;
-}
-
-
-void ScanControlHuiChuan::on_setLimitBtn_clicked()
-{
-    qCWarning(lcUi) << "设置机械极限位: 汇川控制器未实现，忽略";
-}
-
 
 bool ScanControlHuiChuan::jogAllowed(const char* action)
 {

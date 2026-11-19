@@ -1,6 +1,5 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-#include "modbusconfig.h"
 #include "locke_log.h"
 
 #include <QDir>
@@ -62,45 +61,16 @@ void MainWindow::saveseting(){
     // 速度类输入框也一并保存（之前有些只在 editingFinished 才存）
     settings->setValue("backOrigin_velocity", ui->backOrigin_velocity->text());
     settings->setValue("jog_velocity",        ui->jog_velocity->text());
-    settings->setValue("originSpeed",         ui->originSpeed->text());
-    settings->setValue("startSpeed",          ui->startSpeed->text());
-    settings->setValue("endSpeed",            ui->endSpeed->text());
     settings->setValue("stepSpeed",           ui->stepSpeed->text());
 
 
-    // 扫查轴下拉、检测区域下拉、Region 下拉
+    // 扫查轴下拉
     settings->setValue("scanAxis",   ui->comboBox_2->currentIndex());
-    settings->setValue("detectArea", ui->comboBox->currentIndex());
-    settings->setValue("regionIdx",  ui->regin->currentIndex());
-
-    // 设置区域里的输入框（x/y/z/r 三组）
-    settings->setValue("inputx_2", ui->inputx_2->text());
-    settings->setValue("inputy_2", ui->inputy_2->text());
-    settings->setValue("inputz_2", ui->inputz_2->text());
-    settings->setValue("inputr_2", ui->inputr_2->text());
-    settings->setValue("inputx_3", ui->inputx_3->text());
-    settings->setValue("inputy_3", ui->inputy_3->text());
-    settings->setValue("inputz_3", ui->inputz_3->text());
-    settings->setValue("inputr_3", ui->inputr_3->text());
-    settings->setValue("inputx_4", ui->inputx_4->text());
-    settings->setValue("inputy_4", ui->inputy_4->text());
-    settings->setValue("inputz_4", ui->inputz_4->text());
-    settings->setValue("inputr_4", ui->inputr_4->text());
 
 
 
 
-    settings->beginGroup(ui->regin->currentText());
 
-    settings->setValue("xlenght", ui->x_lenght->text());
-    settings->setValue("ylenght", ui->y_lenght->text());
-    settings->setValue("step", ui->y_step->text());
-
-
-    settings->setValue("sweepSpeed", ui->sweepSpeed->text());
-    settings->setValue("stepSpeed", ui->stepSpeed->text());
-
-    settings->endGroup();
     settings->sync();  // 强制写入磁盘
     if (settings->status() != QSettings::NoError) {
         qCWarning(lcUi) << "参数保存失败:" << settings->fileName() << "status" << settings->status();
@@ -138,20 +108,6 @@ void MainWindow::initWidget()
     ui->y_lenght->setText(settings->value("ylenght", "").toString());
     ui->y_step->setText(settings->value("step", "").toString());
 
-    QString activePiece =  ui->regin->currentText();
-    QStringList groups = settings->childGroups();
-    if (groups.contains(activePiece)) {
-
-        ui->sweepSpeed->setText(settings->value("sweepSpeed", "").toString());
-        ui->stepSpeed->setText(settings->value("stepSpeed", "").toString());
-
-        ui->x_lenght->setText(settings->value("xlenght", "").toString());
-        ui->y_lenght->setText(settings->value("ylenght", "").toString());
-        ui->y_step->setText(settings->value("step", "").toString());
-    }
-
-    settings->endGroup();
-
     ui->IP_Edit->setText(settings->value("IP_Edit", "192.168.1.13").toString());
     ui->port_Edit->setText(settings->value("port_Edit", "8802").toString());
 
@@ -162,27 +118,8 @@ void MainWindow::initWidget()
     ui->invertXCheck->setChecked(settings->value("invertX",  false).toBool());
     ui->invertYCheck->setChecked(settings->value("invertY",  false).toBool());
 
-    // 其余速度框、下拉框、设置区域输入框
-    ui->originSpeed->setText(settings->value("originSpeed", "").toString());
-    ui->startSpeed ->setText(settings->value("startSpeed",  "").toString());
-    ui->endSpeed   ->setText(settings->value("endSpeed",    "").toString());
-    ui->stepSpeed  ->setText(settings->value("stepSpeed",   "").toString());
-
+    // 扫查轴下拉
     ui->comboBox_2 ->setCurrentIndex(settings->value("scanAxis",   0).toInt());
-    ui->comboBox   ->setCurrentIndex(settings->value("detectArea", 0).toInt());
-    ui->regin      ->setCurrentIndex(settings->value("regionIdx",  0).toInt());
-    ui->inputx_2->setText(settings->value("inputx_2", "").toString());
-    ui->inputy_2->setText(settings->value("inputy_2", "").toString());
-    ui->inputz_2->setText(settings->value("inputz_2", "").toString());
-    ui->inputr_2->setText(settings->value("inputr_2", "").toString());
-    ui->inputx_3->setText(settings->value("inputx_3", "").toString());
-    ui->inputy_3->setText(settings->value("inputy_3", "").toString());
-    ui->inputz_3->setText(settings->value("inputz_3", "").toString());
-    ui->inputr_3->setText(settings->value("inputr_3", "").toString());
-    ui->inputx_4->setText(settings->value("inputx_4", "").toString());
-    ui->inputy_4->setText(settings->value("inputy_4", "").toString());
-    ui->inputz_4->setText(settings->value("inputz_4", "").toString());
-    ui->inputr_4->setText(settings->value("inputr_4", "").toString());
 
     auto *scanSpeedValidator = new QDoubleValidator(0.0, 999999.0, 3, this);
     scanSpeedValidator->setNotation(QDoubleValidator::StandardNotation);
@@ -241,12 +178,8 @@ void MainWindow::connectFun()
 
     connect(ui->startScanBtn, &QPushButton::clicked, this, &MainWindow::setStart);
 
-    // 暂停/继续：原来的小“暂停”只能停、没法继续，这里做成开关
-    connect(ui->stopScanBtn, &QPushButton::clicked, this, &MainWindow::togglePauseScan);
-
     // “修复”：清除驱动器错误标志（协议 0x9B），只发指令，不影响扫查进度
     connect(ui->resetScanBtn, &QPushButton::clicked, scanCtrl, &ScanControlAbstract::on_alarmReset);
-    updatePauseUi();
 
     connect(ui->backZeroScanBtn, &QPushButton::clicked, this, &MainWindow::on_backZero);
     connect(ui->endScanBtn, &QPushButton::clicked, this, &MainWindow::scanEnd);
@@ -267,7 +200,6 @@ void MainWindow::connectFun()
 
 
 
-    connect(ui->setBtn, &QPushButton::clicked, this, &MainWindow::setBtn);
     connect(ui->setMOrigin, &QPushButton::clicked, this, &MainWindow::setMOrigin);
 
     // 把 X/Y 反向勾选同步到控制器，让点动按键方向也跟着翻
@@ -306,20 +238,12 @@ void MainWindow::connectFun()
         ui->sweepSpeed,
         ui->x_lenght, ui->y_lenght, ui->y_step,
         ui->backOrigin_velocity, ui->jog_velocity,
-        ui->originSpeed, ui->startSpeed, ui->endSpeed, ui->stepSpeed,
-
-        ui->inputx_2, ui->inputy_2, ui->inputz_2, ui->inputr_2,
-        ui->inputx_3, ui->inputy_3, ui->inputz_3, ui->inputr_3,
-        ui->inputx_4, ui->inputy_4, ui->inputz_4, ui->inputr_4,
+        ui->stepSpeed,
     };
     for (auto *e : edits) {
         connect(e, &QLineEdit::editingFinished, this, saveOnEdit);
     }
     connect(ui->comboBox_2, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, [this](int){ saveseting(); });
-    connect(ui->comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, [this](int){ saveseting(); });
-    connect(ui->regin, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int){ saveseting(); });
 }
 
@@ -371,21 +295,6 @@ void MainWindow::jog_velocity(){
     qCInfo(lcUi) << "点动速度设为" << ui->jog_velocity->text() << "mm/s";
     if (!(ui->jog_velocity->text().toDouble() > 0.0))
         qCWarning(lcUi) << "点动速度 <= 0，点动按钮将不会让电机运动";
-    saveseting();
-}
-
-void MainWindow::originSpeed(){
-
-    saveseting();
-}
-
-void MainWindow::startSpeed(){
-
-    saveseting();
-}
-
-void MainWindow::endSpeed(){
-
     saveseting();
 }
 
@@ -579,18 +488,6 @@ std::vector<Point2D> MainWindow::generateBowScanPathDense(
 
 
 
-void MainWindow::setBtn(){
-
-    xlenght=ui->x_lenght->text().toFloat();
-    ylenght=ui->y_lenght->text().toFloat();
-    step=ui->y_step->text().toFloat();
-
-    qCInfo(lcUi) << "点击 保存参数: 扫查轴长" << xlenght << "步进轴长" << ylenght << "步进" << step
-                 << "区域" << ui->regin->currentText();
-    saveseting();
-
-}
-
 void MainWindow::on_connectBtn_clicked(){
 
     qCInfo(lcUi) << "点击 连接/断开, 界面地址" << ui->IP_Edit->text() << ui->port_Edit->text();
@@ -602,11 +499,6 @@ void MainWindow::on_connectBtn_clicked(){
     scanCtrl->setModbusPort(port);
 
 }
-void MainWindow::setOrigin(){
-    qCInfo(lcUi) << "设置起点: 当前位置" << position.x << position.y;
-    saveseting();
-}
-
 void MainWindow::on_backZero(){
 
     qCInfo(lcScan) << "回原: 当前位置" << position.x << position.y
@@ -662,9 +554,6 @@ void MainWindow::sendNextPoint()
                        << "卡滞重发" << scanResendTotal << "次, 超时跳点" << scanForcedTotal << "次";
         if (scanForcedTotal > 0)
             qCWarning(lcScan) << "本轮有" << scanForcedTotal << "个点超时未到位被跳过，这些位置可能漏扫";
-
-        scanPaused = false;    // 本轮扫完，暂停态一并清除
-        updatePauseUi();
 
         // 只有勾选“自动回原”时，才允许回原并按循环配置继续扫查。
         if(!stopScan
@@ -821,8 +710,6 @@ void MainWindow::startArriveCheck(Point2D target, bool checkX, bool checkY)
                                    << "网关" << ui->IP_Edit->text() << ui->port_Edit->text();
                 arriveActive = false;
                 stopScan = true;
-                scanPaused = false;
-                updatePauseUi();
                 arriveTimer->stop();
                 arriveTimer->deleteLater();
                 arriveTimer = nullptr;
@@ -991,8 +878,6 @@ void MainWindow::setStart(){
     step=ui->y_step->text().toFloat();
 
     stopScan=false;
-    scanPaused=false;          // 新一轮扫查：清掉上一轮的暂停态，按钮回到“暂停”
-    updatePauseUi();
 
 
     if (ui->freeMotionCheck->isChecked()) {
@@ -1054,79 +939,6 @@ void MainWindow::enableManualControls()
     ui->setMOrigin->setEnabled(true);
 }
 
-// 暂停按钮文字跟着状态走：暂停中显示“继续”，运行/空闲时显示“暂停”
-void MainWindow::updatePauseUi()
-{
-    const QString idleText   = QString::fromUtf8("暂停");
-    const QString pausedText = QString::fromUtf8("继续");
-    const QString text = scanPaused ? pausedText : idleText;
-    if (ui->stopScanBtn->text() != text)
-        ui->stopScanBtn->setText(text);
-}
-
-// 暂停 / 继续。
-// 暂停只冻结“推进到下一个点”，不改动已经下发的目标位置：
-//   汇川侧 on_stop 本来就不发停止指令，电机会走完当前目标点后自然停住，
-//   所以暂停 = 停在这里等，而不是急停。
-// 继续时按 currentPathIndex 重新下发当前点并重启到位检测，因此是“从断点接着扫”。
-// 与“结束”的区别：结束会置 stopScan=true 并清掉本轮进度，必须点“开始”从头来。
-void MainWindow::togglePauseScan()
-{
-    if (!scanPaused) {
-        // ---- 暂停 ----
-        // 空闲、已结束、已到末尾都不该进入暂停态，否则按钮会卡在“继续”上
-        const bool scanning = !stopScan && (!path.empty() || freeMotionActive);
-        if (!scanning) {
-            qCWarning(lcUi) << "暂停无效: 当前没有正在执行的扫查";
-            return;
-        }
-        scanPaused = true;
-
-        // 冻结推进：到位检测一停，currentPathIndex 就不会再自增
-        arriveActive = false;
-        if (arriveTimer) {
-            arriveTimer->stop();
-            arriveTimer->deleteLater();
-            arriveTimer = nullptr;
-        }
-
-        // 自由运动只置位，不能调 stopFreeMotion()：那个会把范围/目标清零，之后没法恢复
-        if (freeMotionActive)
-            freeMotionActive = false;
-
-        // 保留原调用：台达/汇川当前都未实现停止指令，行为不变，将来实现后可自动生效
-        scanCtrl->on_stop();
-
-        updatePauseUi();
-        qCInfo(lcScan) << "扫查已暂停: 当前点" << currentPathIndex << "/" << path.size()
-                       << "位置" << position.x << position.y;
-        return;
-    }
-
-    // ---- 继续 ----
-    scanPaused = false;
-    updatePauseUi();
-
-    if (ui->freeMotionCheck->isChecked()) {
-        if (freeMotionAxisXEnabled || freeMotionAxisYEnabled)
-            freeMotionActive = true;          // 范围和目标都还在，原地恢复往复
-        else
-            startFreeMotion();                // 参数丢了就按界面重新建一次
-        qCInfo(lcScan) << "自由运动继续: X范围" << freeMotionRangeX << "Y范围" << freeMotionRangeY;
-        return;
-    }
-
-    if (path.empty() || currentPathIndex >= static_cast<int>(path.size())) {
-        qCWarning(lcScan) << "无处可继续: 路径为空或已到末尾，请点“开始”重新扫查";
-        return;
-    }
-
-    qCInfo(lcScan) << "扫查继续: 从第" << currentPathIndex + 1 << "/" << path.size()
-                   << "点" << path[currentPathIndex].x << path[currentPathIndex].y << "接着执行";
-    // 直接复用 sendNextPoint：它按 currentPathIndex 只下发需要动的轴，并重新武装到位检测
-    sendNextPoint();
-}
-
 void MainWindow::scanEnd(){
     const qint64 usedMs = scanElapsed.isValid() ? scanElapsed.elapsed() : 0;
     qCInfo(lcUi) << "点击 结束, 当前点" << currentPathIndex << "/" << path.size()
@@ -1136,8 +948,6 @@ void MainWindow::scanEnd(){
     stopScan=true;
     stopFreeMotion();
     arriveActive = false;
-    scanPaused=false;          // 结束时清掉暂停态，否则下一轮按钮会停在“继续”
-    updatePauseUi();
 
     if(arriveTimer){
         arriveTimer->stop();
@@ -1158,11 +968,6 @@ void MainWindow::scanEnd(){
     ui->jog_velocity->setEnabled(true);
 
     ui->setMOrigin->setEnabled(true);
-}
-
-void MainWindow::setEnd(){
-    qCInfo(lcUi) << "设置终点: 当前位置" << position.x << position.y;
-    saveseting();
 }
 
 
@@ -1194,173 +999,8 @@ void MainWindow::setMOrigin(){
 
 
 
-void MainWindow::regin(){
-
-    if(ui->regin->currentIndex()==0){
-
-        origin=0x0063;
-        start=0x0064;
-        end=0x0065;
-
-        xo=0x0000;
-        yo=0x0018;
-
-        xs=0x0008;
-        ys=0x0020;
-
-        xe=0x0010;
-        ye=0x0028;
-
-        sweep=0X012B;
-
-    }else if (ui->regin->currentIndex()==1) {
-
-
-        origin=0x0066;
-        start=0x0067;
-        end=0x0068;
-
-        xo=0x0002;
-        yo=0x001A;
-
-        xs=0x000A;
-        ys=0x0022;
-
-        xe=0x0012;
-        ye=0x002A;
-
-        sweep=0X012D;
-    }else if (ui->regin->currentIndex()==2) {
-
-        origin=0x0069;
-        start=0x006A;
-        end=0x006B;
-
-        xo=0x0004;
-        yo=0x001C;
-
-        xs=0x000C;
-        ys=0x0024;
-
-        xe=0x0014;
-        ye=0x002C;
-
-        sweep=0X012F;
-    }else if (ui->regin->currentIndex()==3) {
-
-        origin=0x006C;
-        start=0x006D;
-        end=0x006E;
-
-        xo=0x0006;
-        yo=0x001E;
-
-        xs=0x000E;
-        ys=0x0026;
-
-        xe=0x0016;
-        ye=0x002E;
-
-        sweep=0X0131;
-    }
-
-
-    QString activePiece =  ui->regin->currentText();
-    QStringList groups = settings->childGroups();
-    if (groups.contains(activePiece)) {
-        ui->inputx_2->setText(settings->value("inputx_2", "").toString());
-        ui->inputy_2->setText(settings->value("inputy_2", "").toString());
-        ui->inputz_2->setText(settings->value("inputz_2", "").toString());
-        ui->inputr_2->setText(settings->value("inputr_2", "").toString());
-
-        ui->inputx_3->setText(settings->value("inputx_3", "").toString());
-        ui->inputy_3->setText(settings->value("inputy_3", "").toString());
-        ui->inputz_3->setText(settings->value("inputz_3", "").toString());
-        ui->inputr_3->setText(settings->value("inputr_3", "").toString());
-
-        ui->inputx_4->setText(settings->value("inputx_4", "").toString());
-        ui->inputy_4->setText(settings->value("inputy_4", "").toString());
-        ui->inputz_4->setText(settings->value("inputz_4", "").toString());
-        ui->inputr_4->setText(settings->value("inputr_4", "").toString());
-
-        ui->sweepSpeed->setText(settings->value("sweepSpeed", "").toString());
-        ui->stepSpeed->setText(settings->value("stepSpeed", "").toString());
-    }
-
-    settings->endGroup();
-
-    qCInfo(lcUi) << "切换区域" << ui->regin->currentIndex() << ui->regin->currentText()
-                 << "存在保存的区域参数" << groups.contains(activePiece);
-}
-//    auto isArrivedByPos = [&](const Point2D& target)->bool {
-
-//        Point2D curr;
-//        curr.x = ui->xCurPos->text().toFloat();
-//        curr.y = ui->yCurPos->text().toFloat();
-
-//        float dx = target.x - curr.x;
-//        float dy = target.y - curr.y;
-
-//        float dist = std::sqrt(dx*dx + dy*dy);
-
-//        constexpr float POS_THRESHOLD = 0.5f;   // 到位阈值（单位与坐标一致，例如 mm / deg）
-
-//        return dist < POS_THRESHOLD;
-//    };
 
 
 
-//    auto path = generateBowScanPathDense(xlenght, ylenght, step);
-
-//    for (auto& p : path) {
-//        qDebug() << "Move to:" << p.x << p.y;
-
-//        double targetMmx = p.x;  // 假设 x 是导轨位移 mm
-
-//        double targetMmy=p.y;
-
-//        int64_t angleControlx = mmToAngleControl(-targetMmx);
-//        int64_t angleControly = mmToAngleControl(targetMmy);
-
-//        double speedDps = ui->sweepSpeed->text().toDouble();
-//        uint32_t maxSpeed = static_cast<uint32_t>(speedDps * 6000.0);
 
 
-//        scanCtrl->pushsend=true;
-
-//        scanCtrl->runPosintion(angleControlx, maxSpeed);
-
-//        scanCtrl->pushsend=true;
-
-//        _sleep(500);
-//        //scanCtrl2->runPosintion(angleControly, maxSpeed);
-
-//        scanCtrl->pushsend=false;
-
-
-//        QElapsedTimer timer;
-//           timer.start();
-//           QTimer* arriveTimer = new QTimer(this);
-
-//           connect(arriveTimer, &QTimer::timeout, this, [=]() mutable {
-
-//               Point2D curr;
-//               curr.x = ui->xCurPos->text().toFloat();
-//               curr.y = ui->yCurPos->text().toFloat();
-
-//               float dx = p.x - curr.x;
-//               float dy = p.y - curr.y;
-//               float dist = std::sqrt(dx*dx + dy*dy);
-
-//               if (dist < 0.5f) {
-//                   arriveTimer->stop();
-//                   arriveTimer->deleteLater();
-//                   qDebug() << "Arrived at target";
-//                   // 触发下一步逻辑
-//               }
-//           });
-
-//           arriveTimer->start(100);  // 100ms 检查一次
-
-
-//    }

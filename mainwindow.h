@@ -9,7 +9,6 @@
 
 
 
-#include "scancontroltaida.h"
 #include "scancontrolhuichuan.h"
 
 struct Point2D {
@@ -34,14 +33,6 @@ public:
     QTimer* arriveTimer = nullptr;
 
     bool stopScan = true;   // 上电默认“未在扫查”，避免未初始化时被误读
-
-    // ---- 暂停/继续 ----
-    // 暂停只冻结“推进到下一个点”，不改动已下发的目标位置：
-    // 电机走到当前点后停住，继续时按 currentPathIndex 重新下发并重启到位检测，
-    // 因此是从断点接着扫，而不是从头开始。与“结束”互斥，结束会清空本轮进度。
-    bool scanPaused = false;
-    void togglePauseScan();
-    void updatePauseUi();
 
     // ---- 事件驱动到位检测 ----
     // 不再用 50ms 轮询比较位置，改成：每次 updatePosition* 收到真实位置回包
@@ -90,22 +81,6 @@ public:
 
 
     QSettings *settings;
-    int origin;
-    int start;
-    int end;
-
-
-    int xo;
-    int yo;
-
-    int xs;
-    int ys;
-
-    int xe;
-    int ye;
-
-    int sweep;
-
 
     float xlenght;
     float ylenght;
@@ -117,7 +92,6 @@ public:
 private:
     void initWidget();
     void connectFun();
-    void updateWight();
     void saveseting();
 private slots:
 
@@ -129,29 +103,16 @@ private slots:
     void updatePosition2(float pos);
     void setMOrigin();
 
-    void setOrigin();
     void setStart();
-    void setEnd();
     void on_backZero();
 
     void backOrigin_velocity();
     void jog_velocity();
-    void originSpeed();
-    void startSpeed();
-    void endSpeed();
 
-    void regin();
-
-
-    void setBtn();
 private:
     Ui::MainWindow *ui;
 
     ScanControlAbstract *scanCtrl;
-    ScanControlAbstract *scanCtrl2;
-
-    ScanControlHuiChuan *scanCtrlHunChuan;
-    ScanControlHuiChuan *scanCtrlTaiDa;
 
 };
 
